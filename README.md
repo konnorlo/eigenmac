@@ -15,22 +15,6 @@ A Zetamac-style eigenvalue drilling game. Solve eigenvalues of randomly generate
 Play here!:
 https://konnorlo.github.io/eigenmac/
 
-## Multiplayer (local)
-1. Install deps:
-
-```bash
-npm install
-```
-
-2. Start the WebSocket server:
-
-```bash
-npm start
-```
-
-3. Open `index.html` and use the Multiplayer panel.
-
-Server URL is set by `WS_URL` at the top of `script.js`.
 
 ## License
 Owned by Konnor Lo
