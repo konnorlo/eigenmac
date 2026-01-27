@@ -47,6 +47,10 @@ const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
 const confettiImg = new Image();
 confettiImg.src = 'confetti.png';
+const resultBetterImg = new Image();
+const resultLowerImg = new Image();
+resultBetterImg.src = 'better-than-best.png';
+resultLowerImg.src = 'lower-than-best.png';
 
 let timer = null;
 let timeLeft = 0;
@@ -67,6 +71,7 @@ let settings = {
 let padCtx = null;
 let padDrawing = false;
 let padLabelDrawn = false;
+let resultBackgroundImg = null;
 let confettiCtx = null;
 let confettiParticles = [];
 let confettiActive = false;
@@ -302,7 +307,11 @@ function resizePad() {
   padCtx.lineCap = 'round';
   padCtx.strokeStyle = '#111111';
   padLabelDrawn = false;
-  drawPadLabel();
+  if (resultBackgroundImg) {
+    drawResultBackground(resultBackgroundImg);
+  } else {
+    drawPadLabel();
+  }
 }
 
 function resizeConfetti() {
@@ -448,6 +457,21 @@ function drawPadLabel() {
   padCtx.fillText('draw here', x + 6, y + 26);
   padCtx.restore();
   padLabelDrawn = true;
+}
+
+function drawResultBackground(img) {
+  if (!padCtx || !img || !img.complete) return;
+  const cw = window.innerWidth;
+  const ch = window.innerHeight;
+  padCtx.clearRect(0, 0, cw, ch);
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  const scale = Math.max(cw / iw, ch / ih);
+  const w = iw * scale;
+  const h = ih * scale;
+  const x = (cw - w) / 2;
+  const y = (ch - h) / 2;
+  padCtx.drawImage(img, x, y, w, h);
 }
 
 function spawnDvdBox() {
@@ -620,12 +644,11 @@ function startGame() {
 
   showOnlyScreen(screenGame);
   statsEl.style.visibility = 'visible';
-  if (pad) {
-    pad.style.backgroundImage = '';
-    pad.style.backgroundColor = '#ffffff';
-    pad.style.backgroundSize = '';
-    pad.style.backgroundRepeat = '';
-    pad.style.backgroundPosition = '';
+  resultBackgroundImg = null;
+  if (padCtx && pad) {
+    padCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    padLabelDrawn = false;
+    drawPadLabel();
   }
 
   gameActive = true;
@@ -655,21 +678,21 @@ function endGame() {
     bestScore = score;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   }
-  if (pad) {
-    if (score >= prevBest) {
-      pad.style.backgroundImage = "url('better-than-best.png')";
-    } else if (score < prevBest) {
-      pad.style.backgroundImage = "url('lower-than-best.png')";
+  if (score >= prevBest) {
+    resultBackgroundImg = resultBetterImg;
+  } else if (score < prevBest) {
+    resultBackgroundImg = resultLowerImg;
+  } else {
+    resultBackgroundImg = null;
+  }
+  if (resultBackgroundImg) {
+    if (resultBackgroundImg.complete) {
+      drawResultBackground(resultBackgroundImg);
     } else {
-      pad.style.backgroundImage = '';
+      resultBackgroundImg.onload = () => drawResultBackground(resultBackgroundImg);
     }
-    if (pad.style.backgroundImage) {
-      pad.style.backgroundColor = 'transparent';
-      pad.style.backgroundSize = 'cover';
-      pad.style.backgroundRepeat = 'no-repeat';
-      pad.style.backgroundPosition = 'center';
-    }
-    void pad.offsetHeight;
+  } else if (padCtx) {
+    padCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
   }
   finalScoreEl.textContent = `score: ${score}`;
   screenStart.classList.add('hidden');
