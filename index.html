@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eigenmac</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="pad" class="pad"></canvas>
+  <canvas id="confetti" class="confetti"></canvas>
+  <img
+    id="dvd-template"
+    class="dvd dvd-template"
+    src="ChatGPT Image Jan 27, 2026 at 12_32_54 PM.png"
+    alt="dvd"
+  />
+  <main class="app">
+    <div class="stats" id="stats">
+      <div class="stat">
+        <div class="stat-label">time</div>
+        <div class="stat-value" id="time">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">score</div>
+        <div class="stat-value" id="score">0</div>
+      </div>
+    </div>
+
+    <section class="screen" id="screen-start">
+      <div class="card">
+        <div class="settings-title">start</div>
+        <div class="settings-grid">
+          <label>
+            time (s)
+            <input id="time-limit" type="number" min="10" max="600" value="60" />
+          </label>
+          <label>
+            dimensions range
+            <div class="range-row">
+              <select id="size-min">
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+              <span class="range-dash">to</span>
+              <select id="size-max">
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+          </label>
+          <label>
+            integer range (|value| ≤)
+            <input id="range" type="number" min="1" max="20" value="5" />
+          </label>
+          <label>
+            symmetric matrices
+            <select id="symmetric">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+        </div>
+        <div class="settings-hint">eigenvalues are always integers.</div>
+        <div class="actions">
+          <button id="start" class="primary">start</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="screen-game">
+      <div class="card">
+        <div class="matrix-title">find eigenvalues</div>
+        <div class="matrix" id="matrix"></div>
+        <div class="answer" id="answer"></div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="screen-deploy">
+      <div class="card deploy">
+        <div class="deploy-title">results</div>
+        <div class="deploy-score" id="final-score">score: 0</div>
+        <div class="deploy-hint">press space to replay with same settings</div>
+        <button id="edit-settings" class="ghost">edit settings</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">type eigenvalues in order; auto-checks each box</footer>
+  <div class="best-score" id="best-score">best: 0</div>
+
+  <script src="script.js"></script>
+</body>
+</html>
