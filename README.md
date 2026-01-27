@@ -10,7 +10,7 @@ A Zetamac-style eigenvalue drilling game. Solve eigenvalues of randomly generate
 - Animated bouncing image boxes + confetti
 - Best score tracking and results backgrounds
 
-## Customize
+## Play
 
 Play here!:
 https://konnorlo.github.io/eigenmac/
