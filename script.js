@@ -23,12 +23,12 @@ const DEFAULT_MODE = 'classic';
 const DEFAULT_DIFFICULTY = 'medium';
 
 
-const BATTLE_DURATION = 120;
+const BATTLE_DURATION = 140;
 const BATTLE_COMPETITORS = 99;
 const BATTLE_MEAN_MULT = 0.9;
 const BOT_MEAN_RATE = 0.1;
 const BOT_STD_RATE = 0.04;
-const CUT_TIMES = [20, 33, 47, 57, 67, 80, 93, 107, 120];
+const CUT_TIMES = [23, 39, 55, 66, 78, 94, 109, 125, 140];
 const CUT_RANKS = [60, 45, 30, 25, 18, 12, 8, 5, 3];
 
 const DIFFICULTY_PARAMS = {
@@ -75,9 +75,11 @@ confettiImg.src = 'confetti.png';
 const resultBetterImg = new Image();
 const resultLowerImg = new Image();
 const resultRoyaleWinImg = new Image();
+const paircraftImg = new Image();
 resultBetterImg.src = 'better-than-best.png';
 resultLowerImg.src = 'lower-than-best.png';
 resultRoyaleWinImg.src = 'royale-winner.png';
+paircraftImg.src = 'paircraft.png';
 
 const BOT_NAMES = [
   'Marla Kingsley',
@@ -113,6 +115,7 @@ const BOT_NAMES = [
 ];
 
 const PLAYER_NAME = 'you';
+const PAIRCRAFT_CHANCE = 0.08;
 
 let timer = null;
 let timeLeft = 0;
@@ -669,6 +672,7 @@ function tickBattle() {
 
 function spawnDvdBox() {
   if (!dvdTemplate) return;
+  const usePaircraft = Math.random() < PAIRCRAFT_CHANCE;
   const baseSpeed = Math.hypot(DVD_SPEED_X, DVD_SPEED_Y) || 1;
   const speedScale = randFloat(DVD_SPEED_MIN, DVD_SPEED_MAX);
   const sizeScale = randFloat(DVD_SIZE_MIN, DVD_SIZE_MAX);
@@ -686,6 +690,9 @@ function spawnDvdBox() {
   el.style.width = `${width}px`;
   el.style.height = `${height}px`;
   el.style.opacity = `${DVD_OPACITY}`;
+  if (usePaircraft) {
+    el.src = 'paircraft.png';
+  }
   document.body.appendChild(el);
 
   const maxX = Math.max(0, window.innerWidth - width);
