@@ -28,6 +28,17 @@ body {
   opacity: 1;
 }
 
+.result-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  display: none;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .confetti {
   position: fixed;
   inset: 0;

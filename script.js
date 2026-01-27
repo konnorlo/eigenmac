@@ -45,6 +45,7 @@ const deployScreen = document.getElementById('screen-deploy');
 const pad = document.getElementById('pad');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
+const resultOverlay = document.getElementById('result-overlay');
 const confettiImg = new Image();
 confettiImg.src = 'confetti.png';
 const resultBetterImg = new Image();
@@ -72,7 +73,6 @@ let padCtx = null;
 let padDrawing = false;
 let padLabelDrawn = false;
 let resultBackgroundImg = null;
-let padWasHidden = false;
 let confettiCtx = null;
 let confettiParticles = [];
 let confettiActive = false;
@@ -653,13 +653,10 @@ function startGame() {
 
   showOnlyScreen(screenGame);
   statsEl.style.visibility = 'visible';
-  document.body.style.backgroundImage = '';
-  document.body.style.backgroundSize = '';
-  document.body.style.backgroundRepeat = '';
-  document.body.style.backgroundPosition = '';
-  if (pad) {
-    pad.style.opacity = '1';
-    padWasHidden = false;
+  if (resultOverlay) {
+    resultOverlay.style.display = 'none';
+    resultOverlay.removeAttribute('src');
+    resultOverlay.alt = '';
   }
   resultBackgroundImg = null;
   if (padCtx && pad) {
@@ -703,20 +700,19 @@ function endGame() {
   } else {
     resultBackgroundImg = null;
   }
-  if (resultBackgroundImg) {
-    document.body.style.backgroundImage = `url('${resultBackgroundImg.src}')`;
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundRepeat = 'no-repeat';
-    document.body.style.backgroundPosition = 'center';
-    if (pad) {
-      pad.style.opacity = '0';
-      padWasHidden = true;
-    }
-  } else {
-    document.body.style.backgroundImage = '';
-    if (pad) {
-      pad.style.opacity = '1';
-      padWasHidden = false;
+  if (resultOverlay) {
+    if (score >= prevBest) {
+      resultOverlay.src = 'better-than-best.png';
+      resultOverlay.alt = 'better than best';
+      resultOverlay.style.display = 'block';
+    } else if (score < prevBest) {
+      resultOverlay.src = 'lower-than-best.png';
+      resultOverlay.alt = 'lower than best';
+      resultOverlay.style.display = 'block';
+    } else {
+      resultOverlay.style.display = 'none';
+      resultOverlay.removeAttribute('src');
+      resultOverlay.alt = '';
     }
   }
   finalScoreEl.textContent = `score: ${score}`;
