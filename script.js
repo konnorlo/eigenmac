@@ -72,6 +72,7 @@ let padCtx = null;
 let padDrawing = false;
 let padLabelDrawn = false;
 let resultBackgroundImg = null;
+let padWasHidden = false;
 let confettiCtx = null;
 let confettiParticles = [];
 let confettiActive = false;
@@ -652,6 +653,14 @@ function startGame() {
 
   showOnlyScreen(screenGame);
   statsEl.style.visibility = 'visible';
+  document.body.style.backgroundImage = '';
+  document.body.style.backgroundSize = '';
+  document.body.style.backgroundRepeat = '';
+  document.body.style.backgroundPosition = '';
+  if (pad) {
+    pad.style.opacity = '1';
+    padWasHidden = false;
+  }
   resultBackgroundImg = null;
   if (padCtx && pad) {
     padCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -695,13 +704,20 @@ function endGame() {
     resultBackgroundImg = null;
   }
   if (resultBackgroundImg) {
-    if (resultBackgroundImg.complete) {
-      drawResultBackground(resultBackgroundImg);
-    } else {
-      resultBackgroundImg.onload = () => drawResultBackground(resultBackgroundImg);
+    document.body.style.backgroundImage = `url('${resultBackgroundImg.src}')`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundRepeat = 'no-repeat';
+    document.body.style.backgroundPosition = 'center';
+    if (pad) {
+      pad.style.opacity = '0';
+      padWasHidden = true;
     }
-  } else if (padCtx) {
-    padCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  } else {
+    document.body.style.backgroundImage = '';
+    if (pad) {
+      pad.style.opacity = '1';
+      padWasHidden = false;
+    }
   }
   finalScoreEl.textContent = `score: ${score}`;
   screenStart.classList.add('hidden');
