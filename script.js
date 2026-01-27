@@ -656,9 +656,9 @@ function endGame() {
   }
   if (pad) {
     if (score >= prevBest) {
-      pad.style.backgroundImage = "url('better than best.png')";
+      pad.style.backgroundImage = "url('better-than-best.png')";
     } else if (score < prevBest) {
-      pad.style.backgroundImage = "url('lower than best.png')";
+      pad.style.backgroundImage = "url('lower-than-best.png')";
     } else {
       pad.style.backgroundImage = '';
     }
