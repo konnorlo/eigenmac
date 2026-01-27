@@ -75,6 +75,7 @@ let resultBackgroundImg = null;
 let confettiCtx = null;
 let confettiParticles = [];
 let confettiActive = false;
+let debugResultBackground = false;
 
 const dvdBoxes = [];
 let dvdAnimActive = false;
@@ -472,6 +473,13 @@ function drawResultBackground(img) {
   const x = (cw - w) / 2;
   const y = (ch - h) / 2;
   padCtx.drawImage(img, x, y, w, h);
+  if (debugResultBackground) {
+    padCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    padCtx.fillRect(20, 20, 220, 40);
+    padCtx.fillStyle = '#ffffff';
+    padCtx.font = '16px \"Space Grotesk\", sans-serif';
+    padCtx.fillText('RESULT BG LOADED', 30, 46);
+  }
 }
 
 function spawnDvdBox() {
@@ -678,6 +686,7 @@ function endGame() {
     bestScore = score;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   }
+  debugResultBackground = true;
   if (score >= prevBest) {
     resultBackgroundImg = resultBetterImg;
   } else if (score < prevBest) {
