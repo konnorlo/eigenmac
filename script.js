@@ -22,12 +22,15 @@ const DEFAULT_SYMMETRIC = false;
 const DEFAULT_MODE = 'classic';
 const DEFAULT_DIFFICULTY = 'medium';
 
-const BATTLE_DURATION = 180;
+// Multiplayer (edit to your server URL)
+const WS_URL = 'ws://localhost:8080';
+
+const BATTLE_DURATION = 120;
 const BATTLE_COMPETITORS = 99;
 const BATTLE_MEAN_MULT = 0.9;
 const BOT_MEAN_RATE = 0.1;
 const BOT_STD_RATE = 0.04;
-const CUT_TIMES = [30, 50, 70, 85, 100, 120, 140, 160, 180];
+const CUT_TIMES = [20, 33, 47, 57, 67, 80, 93, 107, 120];
 const CUT_RANKS = [60, 45, 30, 25, 18, 12, 8, 5, 3];
 
 const DIFFICULTY_PARAMS = {
@@ -54,6 +57,14 @@ const sizeMaxInput = document.getElementById('size-max');
 const modeInput = document.getElementById('mode');
 const difficultyInput = document.getElementById('difficulty');
 const difficultyWrap = document.getElementById('difficulty-wrap');
+const mpNameInput = document.getElementById('mp-name');
+const mpCodeInput = document.getElementById('mp-code');
+const mpPasscodeInput = document.getElementById('mp-passcode');
+const mpPublicInput = document.getElementById('mp-public');
+const mpCreateBtn = document.getElementById('mp-create');
+const mpJoinBtn = document.getElementById('mp-join');
+const mpStartBtn = document.getElementById('mp-start');
+const mpStatusEl = document.getElementById('mp-status');
 
 const screenStart = document.getElementById('screen-start');
 const screenGame = document.getElementById('screen-game');
@@ -118,6 +129,13 @@ let timeLeft = 0;
 let score = 0;
 let bestScore = 0;
 let gameActive = false;
+let mp = {
+  ws: null,
+  id: null,
+  room: null,
+  host: false,
+  active: false
+};
 let currentEigenvalues = [];
 let currentInputs = [];
 let matched = [];
@@ -359,6 +377,9 @@ function handleInput(index) {
     spawnDvdBox();
     if (settings.mode === 'battle') {
       updateBattleStatus();
+    }
+    if (mp.active && mp.ws && mp.ws.readyState === WebSocket.OPEN) {
+      mp.ws.send(JSON.stringify({ type: 'score', score }));
     }
   }
 }
@@ -628,11 +649,77 @@ function updateBattleStatus() {
   renderLeaderboard(playerEntry);
 }
 
+function updateMpStatus(text) {
+  if (mpStatusEl) mpStatusEl.textContent = text;
+}
+
+function ensureWs() {
+  if (mp.ws && mp.ws.readyState === WebSocket.OPEN) return;
+  mp.ws = new WebSocket(WS_URL);
+
+  mp.ws.addEventListener('open', () => {
+    updateMpStatus('connected');
+  });
+
+  mp.ws.addEventListener('message', (event) => {
+    let msg = null;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (msg.type === 'hello') {
+      mp.id = msg.id;
+    } else if (msg.type === 'room') {
+      mp.room = msg.code;
+      mp.host = !!msg.host;
+      mpStartBtn.disabled = !mp.host;
+      updateMpStatus(`room ${msg.code} ${mp.host ? '(host)' : ''}`.trim());
+    } else if (msg.type === 'players') {
+      updateMpStatus(`room ${mp.room} · players ${msg.count}`);
+    } else if (msg.type === 'error') {
+      updateMpStatus(msg.message || 'error');
+    } else if (msg.type === 'start') {
+      mp.active = true;
+      settings = { ...msg.settings };
+      startGame(true);
+    } else if (msg.type === 'leaderboard') {
+      if (msg.placements && mp.id && msg.placements[mp.id]) {
+        battle.placement = msg.placements[mp.id].placement;
+        if (battleStatusEl && settings.mode === 'battle') {
+          battleStatusEl.textContent = `placement: ${battle.placement}/${msg.placements[mp.id].remaining}`;
+        }
+      }
+      if (leaderboardListEl) {
+        leaderboardListEl.innerHTML = '';
+        msg.leaderboard.forEach((c, idx) => {
+          const li = document.createElement('li');
+          li.className = 'leaderboard-item';
+          li.innerHTML = `<span class="leaderboard-rank">${idx + 1}</span><span class="leaderboard-name">${c.name}</span><span class="leaderboard-score">${c.score}</span>`;
+          leaderboardListEl.appendChild(li);
+        });
+        if (leaderboardEl) leaderboardEl.classList.remove('hidden');
+      }
+    } else if (msg.type === 'eliminated') {
+      battle.eliminated = true;
+      endGame();
+    }
+  });
+
+  mp.ws.addEventListener('close', () => {
+    updateMpStatus('disconnected');
+    mp.room = null;
+    mp.host = false;
+    mp.active = false;
+    mpStartBtn.disabled = true;
+  });
+}
+
 function renderLeaderboard(playerEntry) {
   if (!leaderboardListEl) return;
   const top = [...battle.competitors.filter((c) => c.alive), playerEntry]
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, 20);
   leaderboardListEl.innerHTML = '';
   top.forEach((c, idx) => {
     const li = document.createElement('li');
@@ -819,16 +906,18 @@ function animateDvds() {
   requestAnimationFrame(animateDvds);
 }
 
-function startGame() {
-  settings = {
-    timeLimit: Number(timeLimitInput.value),
-    range: Number(rangeInput.value),
-    symmetric: symmetricInput.value === 'yes',
-    sizeMin: Number(sizeMinInput.value),
-    sizeMax: Number(sizeMaxInput.value),
-    mode: modeInput.value,
-    difficulty: difficultyInput.value
-  };
+function startGame(fromServer = false) {
+  if (!fromServer) {
+    settings = {
+      timeLimit: Number(timeLimitInput.value),
+      range: Number(rangeInput.value),
+      symmetric: symmetricInput.value === 'yes',
+      sizeMin: Number(sizeMinInput.value),
+      sizeMax: Number(sizeMaxInput.value),
+      mode: modeInput.value,
+      difficulty: difficultyInput.value
+    };
+  }
 
   score = 0;
   timeLeft = settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit;
@@ -858,7 +947,7 @@ function startGame() {
   focusInput(0);
 
   if (timer) clearInterval(timer);
-  if (settings.mode === 'battle') {
+  if (settings.mode === 'battle' && !mp.active) {
     startBattle();
   } else if (battleStatusEl) {
     battleStatusEl.textContent = '';
@@ -869,7 +958,7 @@ function startGame() {
   timer = setInterval(() => {
     timeLeft -= 1;
     timeEl.textContent = timeLeft;
-    if (settings.mode === 'battle') {
+    if (settings.mode === 'battle' && !mp.active) {
       tickBattle();
       if (battle.active && battle.t >= BATTLE_DURATION) {
         endGame();
@@ -889,7 +978,7 @@ function endGame() {
     bestScore = score;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   }
-  debugResultBackground = true;
+  debugResultBackground = false;
   if (score >= prevBest) {
     resultBackgroundImg = resultBetterImg;
   } else if (score < prevBest) {
@@ -935,6 +1024,7 @@ function endGame() {
   hideStaticDvd();
   clearDvdBoxes();
   battle.active = false;
+  mp.active = false;
 }
 
 function showStartScreen() {
@@ -960,6 +1050,33 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
+mpCreateBtn.addEventListener('click', () => {
+  ensureWs();
+  const name = mpNameInput.value.trim() || 'host';
+  const passcode = mpPasscodeInput.value.trim();
+  const publicRoom = mpPublicInput.value === 'yes';
+  mp.ws.send(JSON.stringify({ type: 'create', name, passcode, publicRoom }));
+});
+mpJoinBtn.addEventListener('click', () => {
+  ensureWs();
+  const code = mpCodeInput.value.trim().toUpperCase();
+  const name = mpNameInput.value.trim() || 'player';
+  const passcode = mpPasscodeInput.value.trim();
+  mp.ws.send(JSON.stringify({ type: 'join', code, name, passcode }));
+});
+mpStartBtn.addEventListener('click', () => {
+  if (!mp.ws || mp.ws.readyState !== WebSocket.OPEN) return;
+  const settingsPayload = {
+    timeLimit: Number(timeLimitInput.value),
+    range: Number(rangeInput.value),
+    symmetric: symmetricInput.value === 'yes',
+    sizeMin: Number(sizeMinInput.value),
+    sizeMax: Number(sizeMaxInput.value),
+    mode: modeInput.value,
+    difficulty: difficultyInput.value
+  };
+  mp.ws.send(JSON.stringify({ type: 'start', settings: settingsPayload }));
+});
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space') return;
@@ -979,6 +1096,8 @@ window.addEventListener('load', () => {
   difficultyInput.value = DEFAULT_DIFFICULTY;
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
+  updateMpStatus('not connected');
+  mpStartBtn.disabled = true;
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   resizePad();
   resizeConfetti();

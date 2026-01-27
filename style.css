@@ -394,6 +394,10 @@ button {
   margin-top: 14px;
 }
 
+.multiplayer {
+  margin-top: 18px;
+}
+
 .footer {
   text-align: center;
   color: var(--muted);
