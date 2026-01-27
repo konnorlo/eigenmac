@@ -11,7 +11,6 @@ A Zetamac-style eigenvalue drilling game. Solve eigenvalues of randomly generate
 - Best score tracking and results backgrounds
 
 ## Customize
-Edit constants at the top of `script.js`:
-- Game defaults: `DEFAULT_TIME_LIMIT`, `DEFAULT_RANGE`, `DEFAULT_SIZE_MIN`, `DEFAULT_SIZE_MAX`, `DEFAULT_SYMMETRIC`
-- DVD animation: `DVD_SPEED_X`, `DVD_SPEED_Y`, `DVD_WIDTH`, `DVD_HEIGHT`, `DVD_OPACITY`, `DVD_ACCEL_RATE`, `DVD_MAX_MULT`, `DVD_BOUNCE_MULT`, `CORNER_CHANCE`
-- Spawn scaling: `DVD_SPEED_MIN`, `DVD_SPEED_MAX`, `DVD_SIZE_MIN`, `DVD_SIZE_MAX`
+
+Play here!:
+https://konnorlo.github.io/eigenmac/
