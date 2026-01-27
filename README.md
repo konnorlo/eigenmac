@@ -31,3 +31,6 @@ npm start
 3. Open `index.html` and use the Multiplayer panel.
 
 Server URL is set by `WS_URL` at the top of `script.js`.
+
+## License
+Owned by Konnor Lo
