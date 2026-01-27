@@ -620,12 +620,10 @@ function startGame() {
 
   showOnlyScreen(screenGame);
   statsEl.style.visibility = 'visible';
-  if (pad) {
-    pad.style.backgroundImage = '';
-    pad.style.backgroundSize = '';
-    pad.style.backgroundRepeat = '';
-    pad.style.backgroundPosition = '';
-  }
+  document.body.style.backgroundImage = '';
+  document.body.style.backgroundSize = '';
+  document.body.style.backgroundRepeat = '';
+  document.body.style.backgroundPosition = '';
 
   gameActive = true;
   hideStaticDvd();
@@ -654,20 +652,19 @@ function endGame() {
     bestScore = score;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   }
-  if (pad) {
-    if (score >= prevBest) {
-      pad.style.backgroundImage = "url('better-than-best.png')";
-    } else if (score < prevBest) {
-      pad.style.backgroundImage = "url('lower-than-best.png')";
-    } else {
-      pad.style.backgroundImage = '';
-    }
-    if (pad.style.backgroundImage) {
-      pad.style.backgroundSize = 'cover';
-      pad.style.backgroundRepeat = 'no-repeat';
-      pad.style.backgroundPosition = 'center';
-    }
+  if (score >= prevBest) {
+    document.body.style.backgroundImage = "url('better-than-best.png')";
+  } else if (score < prevBest) {
+    document.body.style.backgroundImage = "url('lower-than-best.png')";
+  } else {
+    document.body.style.backgroundImage = '';
   }
+  if (document.body.style.backgroundImage) {
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundRepeat = 'no-repeat';
+    document.body.style.backgroundPosition = 'center';
+  }
+  void document.body.offsetHeight;
   finalScoreEl.textContent = `score: ${score}`;
   screenStart.classList.add('hidden');
   screenGame.classList.add('hidden');
