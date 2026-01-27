@@ -65,6 +65,22 @@
               <option value="no">No</option>
             </select>
           </label>
+          <label>
+            mode
+            <select id="mode">
+              <option value="classic" selected>classic</option>
+              <option value="battle">battle royale</option>
+            </select>
+          </label>
+          <label id="difficulty-wrap" class="hidden">
+            difficulty
+            <select id="difficulty">
+              <option value="easy">easy</option>
+              <option value="medium" selected>medium</option>
+              <option value="hard">hard</option>
+              <option value="improbable">improbable</option>
+            </select>
+          </label>
         </div>
         <div class="settings-hint">eigenvalues are always integers.</div>
         <div class="actions">
@@ -74,11 +90,18 @@
     </section>
 
     <section class="screen hidden" id="screen-game">
-      <div class="card">
+      <div class="battle-layout">
+        <aside class="leaderboard hidden" id="leaderboard">
+          <div class="leaderboard-title">leaderboard</div>
+          <ol class="leaderboard-list" id="leaderboard-list"></ol>
+        </aside>
+        <div class="card">
         <div class="matrix-title">find eigenvalues</div>
         <div class="matrix" id="matrix"></div>
         <div class="answer" id="answer"></div>
         <div class="feedback" id="feedback"></div>
+        <div class="battle-status" id="battle-status"></div>
+        </div>
       </div>
     </section>
 

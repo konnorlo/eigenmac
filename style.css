@@ -123,6 +123,10 @@ body {
   display: none;
 }
 
+.hidden {
+  display: none;
+}
+
 .stat {
   background: var(--card);
   padding: 12px 18px;
@@ -264,6 +268,76 @@ button {
   margin-top: 16px;
   font-weight: 700;
   font-size: 1.1rem;
+}
+
+.battle-status {
+  margin-top: 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 1rem;
+  min-height: 24px;
+}
+
+.battle-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.leaderboard {
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+  height: fit-content;
+}
+
+.leaderboard-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.leaderboard-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.leaderboard-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.leaderboard-rank {
+  color: var(--muted);
+  width: 24px;
+}
+
+.leaderboard-name {
+  flex: 1;
+  text-align: left;
+}
+
+.leaderboard-score {
+  font-weight: 600;
+}
+
+@media (max-width: 800px) {
+  .battle-layout {
+    grid-template-columns: 1fr;
+  }
+  .leaderboard {
+    order: 2;
+  }
 }
 
 .feedback.success {

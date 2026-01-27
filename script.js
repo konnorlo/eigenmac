@@ -19,6 +19,23 @@ const DEFAULT_RANGE = 6;
 const DEFAULT_SIZE_MIN = 2;
 const DEFAULT_SIZE_MAX = 3;
 const DEFAULT_SYMMETRIC = false;
+const DEFAULT_MODE = 'classic';
+const DEFAULT_DIFFICULTY = 'medium';
+
+const BATTLE_DURATION = 180;
+const BATTLE_COMPETITORS = 99;
+const BATTLE_MEAN_MULT = 0.9;
+const BOT_MEAN_RATE = 0.1;
+const BOT_STD_RATE = 0.04;
+const CUT_TIMES = [30, 50, 70, 85, 100, 120, 140, 160, 180];
+const CUT_RANKS = [60, 45, 30, 25, 18, 12, 8, 5, 3];
+
+const DIFFICULTY_PARAMS = {
+  easy: { mean: 0.07, std: 0.04 },
+  medium: { mean: 0.1, std: 0.05 },
+  hard: { mean: 0.13, std: 0.06 },
+  improbable: { mean: 0.17, std: 0.08 }
+};
 
 const matrixEl = document.getElementById('matrix');
 const answerEl = document.getElementById('answer');
@@ -34,6 +51,9 @@ const rangeInput = document.getElementById('range');
 const symmetricInput = document.getElementById('symmetric');
 const sizeMinInput = document.getElementById('size-min');
 const sizeMaxInput = document.getElementById('size-max');
+const modeInput = document.getElementById('mode');
+const difficultyInput = document.getElementById('difficulty');
+const difficultyWrap = document.getElementById('difficulty-wrap');
 
 const screenStart = document.getElementById('screen-start');
 const screenGame = document.getElementById('screen-game');
@@ -41,7 +61,10 @@ const screenDeploy = document.getElementById('screen-deploy');
 const statsEl = document.getElementById('stats');
 const finalScoreEl = document.getElementById('final-score');
 const bestScoreEl = document.getElementById('best-score');
+const battleStatusEl = document.getElementById('battle-status');
 const deployScreen = document.getElementById('screen-deploy');
+const leaderboardEl = document.getElementById('leaderboard');
+const leaderboardListEl = document.getElementById('leaderboard-list');
 const pad = document.getElementById('pad');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
@@ -50,8 +73,45 @@ const confettiImg = new Image();
 confettiImg.src = 'confetti.png';
 const resultBetterImg = new Image();
 const resultLowerImg = new Image();
+const resultRoyaleWinImg = new Image();
 resultBetterImg.src = 'better-than-best.png';
 resultLowerImg.src = 'lower-than-best.png';
+resultRoyaleWinImg.src = 'royale-winner.png';
+
+const BOT_NAMES = [
+  'Marla Kingsley',
+  'Devon Pike',
+  'Avery Holt',
+  'Rowan Hale',
+  'Sloan Mercer',
+  'Quinn Calder',
+  'Talia Wren',
+  'Elias Brook',
+  'Nora Voss',
+  'Milo Hart',
+  'Juno Vale',
+  'Sasha Reed',
+  'Iris Dane',
+  'Luca Frost',
+  'Remy Clarke',
+  'Vera Lane',
+  'Alden Cross',
+  'Mae Lennox',
+  'Zara Finch',
+  'Theo Black',
+  'Aria Knox',
+  'Kian Rhodes',
+  'Elise Gray',
+  'Bram Noble',
+  'Skye Arden',
+  'Mira Holt',
+  'Gideon Park',
+  'Lyra Stone',
+  'Owen Vale',
+  'Hazel Quinn'
+];
+
+const PLAYER_NAME = 'you';
 
 let timer = null;
 let timeLeft = 0;
@@ -61,12 +121,15 @@ let gameActive = false;
 let currentEigenvalues = [];
 let currentInputs = [];
 let matched = [];
+let currentMatrixSize = DEFAULT_SIZE_MIN;
 let settings = {
   timeLimit: DEFAULT_TIME_LIMIT,
   range: DEFAULT_RANGE,
   symmetric: DEFAULT_SYMMETRIC,
   sizeMin: DEFAULT_SIZE_MIN,
-  sizeMax: DEFAULT_SIZE_MAX
+  sizeMax: DEFAULT_SIZE_MAX,
+  mode: DEFAULT_MODE,
+  difficulty: DEFAULT_DIFFICULTY
 };
 
 let padCtx = null;
@@ -77,6 +140,16 @@ let confettiCtx = null;
 let confettiParticles = [];
 let confettiActive = false;
 let debugResultBackground = false;
+let battle = {
+  active: false,
+  t: 0,
+  cutIndex: 0,
+  competitors: [],
+  mean: 0,
+  std: 0,
+  placement: 0,
+  eliminated: false
+};
 
 const dvdBoxes = [];
 let dvdAnimActive = false;
@@ -108,6 +181,15 @@ function randInt(min, max) {
 
 function randFloat(min, max) {
   return Math.random() * (max - min) + min;
+}
+
+function randNormal(mean, std) {
+  let u = 0;
+  let v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  return mean + z * std;
 }
 
 function shuffle(arr) {
@@ -275,12 +357,16 @@ function handleInput(index) {
     feedbackEl.className = 'feedback success';
     nextProblem();
     spawnDvdBox();
+    if (settings.mode === 'battle') {
+      updateBattleStatus();
+    }
   }
 }
 
 function nextProblem() {
   const { matrix, eigenvalues } = generateProblem();
   currentEigenvalues = eigenvalues;
+  currentMatrixSize = matrix.length;
   setMatrixGrid(matrix.length);
   renderMatrix(matrix);
   buildInputs(eigenvalues.length);
@@ -483,6 +569,102 @@ function drawResultBackground(img) {
   }
 }
 
+function startBattle() {
+  battle.active = true;
+  battle.t = 0;
+  battle.cutIndex = 0;
+  const diff = DIFFICULTY_PARAMS[settings.difficulty] || DIFFICULTY_PARAMS.medium;
+  battle.mean = diff.mean * BATTLE_MEAN_MULT;
+  battle.std = diff.std;
+  battle.eliminated = false;
+  const names = shuffle(BOT_NAMES);
+  battle.competitors = Array.from({ length: BATTLE_COMPETITORS }, (_, i) => ({
+    name: names[i % names.length],
+    baseRate: Math.max(0.02, randNormal(battle.mean, battle.std)),
+    score: 0,
+    alive: true
+  }));
+  updateBattleStatus();
+}
+
+function paceCompetitors() {
+  const sizeFactor = 2 / (Math.max(2, currentMatrixSize)**1.21);
+  battle.competitors.forEach((c) => {
+    if (!c.alive) return;
+    const expected = Math.floor(c.baseRate * sizeFactor * battle.t);
+    if (c.score < expected) {
+      c.score = expected;
+    }
+  });
+}
+
+function cutCompetitors(cutRankPercent) {
+  const alive = battle.competitors.filter((c) => c.alive);
+  if (alive.length <= 1) return;
+  const keepCount = Math.max(1, Math.ceil(alive.length * (cutRankPercent / 100)));
+  const cutCount = Math.max(0, alive.length - keepCount);
+  alive.sort((a, b) => a.score - b.score);
+  for (let i = 0; i < cutCount; i += 1) {
+    alive[i].alive = false;
+  }
+}
+
+function updateBattleStatus() {
+  if (!battleStatusEl) return;
+  if (!battle.active) {
+    battleStatusEl.textContent = '';
+    if (leaderboardEl) leaderboardEl.classList.add('hidden');
+    return;
+  }
+  if (leaderboardEl) leaderboardEl.classList.remove('hidden');
+  const alive = battle.competitors.filter((c) => c.alive);
+  const playerEntry = { name: PLAYER_NAME, score, alive: true };
+  const placement = 1 + alive.filter((c) => c.score > score).length;
+  const remaining = alive.length + 1;
+  const nextCutTime = CUT_TIMES[battle.cutIndex] ?? BATTLE_DURATION;
+  const nextCutIn = Math.max(0, nextCutTime - battle.t);
+  battle.placement = placement;
+  battleStatusEl.textContent = `placement: ${placement}/${remaining} · next cut in ${nextCutIn}s`;
+  renderLeaderboard(playerEntry);
+}
+
+function renderLeaderboard(playerEntry) {
+  if (!leaderboardListEl) return;
+  const top = [...battle.competitors.filter((c) => c.alive), playerEntry]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+  leaderboardListEl.innerHTML = '';
+  top.forEach((c, idx) => {
+    const li = document.createElement('li');
+    li.className = 'leaderboard-item';
+    li.innerHTML = `<span class="leaderboard-rank">${idx + 1}</span><span class="leaderboard-name">${c.name}</span><span class="leaderboard-score">${c.score}</span>`;
+    leaderboardListEl.appendChild(li);
+  });
+}
+
+function tickBattle() {
+  if (!battle.active) return;
+  battle.t += 1;
+  paceCompetitors();
+  const nextCutTime = CUT_TIMES[battle.cutIndex];
+  const nextCutRank = CUT_RANKS[battle.cutIndex];
+  if (nextCutTime !== undefined && battle.t >= nextCutTime) {
+    cutCompetitors(nextCutRank ?? 80);
+    const aliveCount = battle.competitors.filter((c) => c.alive).length;
+    const remaining = aliveCount + 1;
+    const safeCount = Math.max(1, Math.ceil(remaining * ((nextCutRank ?? 80) / 100)));
+    const placement = 1 + battle.competitors.filter((c) => c.alive && c.score > score).length;
+    battle.placement = placement;
+    if (placement > safeCount) {
+      battle.eliminated = true;
+      endGame();
+      return;
+    }
+    battle.cutIndex += 1;
+  }
+  updateBattleStatus();
+}
+
 function spawnDvdBox() {
   if (!dvdTemplate) return;
   const baseSpeed = Math.hypot(DVD_SPEED_X, DVD_SPEED_Y) || 1;
@@ -643,11 +825,13 @@ function startGame() {
     range: Number(rangeInput.value),
     symmetric: symmetricInput.value === 'yes',
     sizeMin: Number(sizeMinInput.value),
-    sizeMax: Number(sizeMaxInput.value)
+    sizeMax: Number(sizeMaxInput.value),
+    mode: modeInput.value,
+    difficulty: difficultyInput.value
   };
 
   score = 0;
-  timeLeft = settings.timeLimit;
+  timeLeft = settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit;
   scoreEl.textContent = score;
   timeEl.textContent = timeLeft;
 
@@ -674,10 +858,23 @@ function startGame() {
   focusInput(0);
 
   if (timer) clearInterval(timer);
+  if (settings.mode === 'battle') {
+    startBattle();
+  } else if (battleStatusEl) {
+    battleStatusEl.textContent = '';
+  }
+  if (leaderboardEl) {
+    leaderboardEl.classList.toggle('hidden', settings.mode !== 'battle');
+  }
   timer = setInterval(() => {
     timeLeft -= 1;
     timeEl.textContent = timeLeft;
-    if (timeLeft <= 0) {
+    if (settings.mode === 'battle') {
+      tickBattle();
+      if (battle.active && battle.t >= BATTLE_DURATION) {
+        endGame();
+      }
+    } else if (timeLeft <= 0) {
       endGame();
     }
   }, 1000);
@@ -701,7 +898,15 @@ function endGame() {
     resultBackgroundImg = null;
   }
   if (resultOverlay) {
-    if (score >= prevBest) {
+    if (settings.mode === 'battle' && battle.placement === 1 && !battle.eliminated) {
+      resultOverlay.src = 'royale-winner.png';
+      resultOverlay.alt = 'battle royale winner';
+      resultOverlay.style.display = 'block';
+    } else if (battle.eliminated) {
+      resultOverlay.src = 'lower-than-best.png';
+      resultOverlay.alt = 'lower than best';
+      resultOverlay.style.display = 'block';
+    } else if (score >= prevBest) {
       resultOverlay.src = 'better-than-best.png';
       resultOverlay.alt = 'better than best';
       resultOverlay.style.display = 'block';
@@ -715,7 +920,11 @@ function endGame() {
       resultOverlay.alt = '';
     }
   }
-  finalScoreEl.textContent = `score: ${score}`;
+  if (settings.mode === 'battle') {
+    finalScoreEl.textContent = `score: ${score} · rank: ${battle.placement}/${BATTLE_COMPETITORS + 1}`;
+  } else {
+    finalScoreEl.textContent = `score: ${score}`;
+  }
   screenStart.classList.add('hidden');
   screenGame.classList.add('hidden');
   screenDeploy.classList.remove('hidden');
@@ -725,6 +934,7 @@ function endGame() {
   triggerImageConfetti(window.innerWidth / 2, window.innerHeight / 2);
   hideStaticDvd();
   clearDvdBoxes();
+  battle.active = false;
 }
 
 function showStartScreen() {
@@ -747,6 +957,9 @@ function showOnlyScreen(target) {
 
 startBtn.addEventListener('click', startGame);
 editSettingsBtn.addEventListener('click', showStartScreen);
+modeInput.addEventListener('change', () => {
+  difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
+});
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space') return;
@@ -762,6 +975,10 @@ window.addEventListener('load', () => {
   sizeMinInput.value = `${DEFAULT_SIZE_MIN}`;
   sizeMaxInput.value = `${DEFAULT_SIZE_MAX}`;
   symmetricInput.value = DEFAULT_SYMMETRIC ? 'yes' : 'no';
+  modeInput.value = DEFAULT_MODE;
+  difficultyInput.value = DEFAULT_DIFFICULTY;
+  difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
+  if (leaderboardEl) leaderboardEl.classList.add('hidden');
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   resizePad();
   resizeConfetti();
