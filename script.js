@@ -27,7 +27,12 @@ const API_BASE_URL = 'https://eigenmac1.onrender.com';
 const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
 const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
 
-const isMultiplayerValue = (value) => value === 'multi' || value === 'multiplayer';
+const PRESETS = {
+  p2: { timeLimit: 120, sizeMin: 2, sizeMax: 2, range: 8, symmetric: false },
+  p3: { timeLimit: 120, sizeMin: 3, sizeMax: 3, range: 6, symmetric: false },
+  p4: { timeLimit: 120, sizeMin: 4, sizeMax: 4, range: 5, symmetric: false },
+  p5: { timeLimit: 120, sizeMin: 5, sizeMax: 5, range: 4, symmetric: false }
+};
 
 function xmur3(str) {
   let h = 1779033703 ^ str.length;
@@ -92,10 +97,32 @@ const sizeMaxInput = document.getElementById('size-max');
 const modeInput = document.getElementById('mode');
 const difficultyInput = document.getElementById('difficulty');
 const difficultyWrap = document.getElementById('difficulty-wrap');
-const multiplayerInput = document.getElementById('multiplayer');
-const mpControlsEl = document.getElementById('mp-controls');
-const mpRoomInput = document.getElementById('mp-room');
+const tabSingleBtn = document.getElementById('tab-single');
+const tabMultiBtn = document.getElementById('tab-multi');
+const panelSingle = document.getElementById('panel-single');
+const panelMulti = document.getElementById('panel-multi');
+const presetGrid = document.getElementById('preset-grid');
+const customSettingsEl = document.getElementById('custom-settings');
+const mpPresetGrid = document.getElementById('mp-preset-grid');
+const mpCustomSettingsEl = document.getElementById('mp-custom-settings');
+const mpTabCreate = document.getElementById('mp-tab-create');
+const mpTabJoin = document.getElementById('mp-tab-join');
+const mpTabPublic = document.getElementById('mp-tab-public');
+const mpPanelCreate = document.getElementById('mp-panel-create');
+const mpPanelJoin = document.getElementById('mp-panel-join');
+const mpPanelPublic = document.getElementById('mp-panel-public');
+const mpRoomNameInput = document.getElementById('mp-room-name');
 const mpPasswordInput = document.getElementById('mp-password');
+const mpRoomCodeInput = document.getElementById('mp-room-code');
+const mpJoinPasswordInput = document.getElementById('mp-join-password');
+const mpModeInput = document.getElementById('mp-mode');
+const mpDifficultyInput = document.getElementById('mp-difficulty');
+const mpDifficultyWrap = document.getElementById('mp-difficulty-wrap');
+const mpTimeLimitInput = document.getElementById('mp-time-limit');
+const mpRangeInput = document.getElementById('mp-range');
+const mpSymmetricInput = document.getElementById('mp-symmetric');
+const mpSizeMinInput = document.getElementById('mp-size-min');
+const mpSizeMaxInput = document.getElementById('mp-size-max');
 const mpCreateBtn = document.getElementById('mp-create');
 const mpJoinBtn = document.getElementById('mp-join');
 const mpListBtn = document.getElementById('mp-list');
@@ -225,6 +252,11 @@ let settings = {
   mode: DEFAULT_MODE,
   difficulty: DEFAULT_DIFFICULTY
 };
+
+let selectedPresetSingle = 'p2';
+let selectedPresetMulti = 'p2';
+let activeStartTab = 'single';
+let activeMpTab = 'create';
 
 let padCtx = null;
 let padDrawing = false;
@@ -398,15 +430,9 @@ function setAuth(nextAuth) {
 
 function getMultiplayerName() {
   if (auth?.username) return auth.username;
-  const { name } = parseRoomInput();
-  const typed = name.trim();
-  if (typed) {
-    localStorage.setItem('eigenmac_mp_name', typed);
-    return typed;
-  }
   const stored = localStorage.getItem('eigenmac_mp_name');
   if (stored) return stored;
-  const fallback = `guest${randInt(1000, 9999)}`;
+  const fallback = `guest_${randInt(1000, 9999)}`;
   localStorage.setItem('eigenmac_mp_name', fallback);
   return fallback;
 }
@@ -416,22 +442,61 @@ function setMultiplayerStatus(text) {
   console.log('[mp] status', text);
 }
 
-function setRoomStatus(text) {
-  if (mpRoomStatusEl) mpRoomStatusEl.textContent = text || '';
+function setRoomStatus(html) {
+  if (!mpRoomStatusEl) return;
+  mpRoomStatusEl.innerHTML = html || '';
 }
 
-function parseRoomInput() {
-  const raw = (mpRoomInput?.value || '').trim();
-  if (!raw) return { name: '', code: '' };
-  if (/^[A-Z0-9]{4,8}$/i.test(raw)) {
-    return { name: '', code: raw.toUpperCase() };
+function setPresetButtons(gridEl, presetKey) {
+  if (!gridEl) return;
+  Array.from(gridEl.querySelectorAll('.preset')).forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.preset === presetKey);
+  });
+}
+
+function applyPresetToInputs(preset, scope = 'single') {
+  if (!preset) return;
+  if (scope === 'single') {
+    timeLimitInput.value = preset.timeLimit;
+    sizeMinInput.value = `${preset.sizeMin}`;
+    sizeMaxInput.value = `${preset.sizeMax}`;
+    rangeInput.value = preset.range;
+    symmetricInput.value = preset.symmetric ? 'yes' : 'no';
+  } else {
+    mpTimeLimitInput.value = preset.timeLimit;
+    mpSizeMinInput.value = `${preset.sizeMin}`;
+    mpSizeMaxInput.value = `${preset.sizeMax}`;
+    mpRangeInput.value = preset.range;
+    mpSymmetricInput.value = preset.symmetric ? 'yes' : 'no';
   }
-  const parts = raw.split(/\s+/);
-  const last = parts[parts.length - 1];
-  if (/^[A-Z0-9]{4,8}$/i.test(last)) {
-    return { name: parts.slice(0, -1).join(' ').trim(), code: last.toUpperCase() };
+}
+
+function getSingleSettings() {
+  if (selectedPresetSingle !== 'custom') {
+    return { ...PRESETS[selectedPresetSingle] };
   }
-  return { name: raw, code: '' };
+  return {
+    timeLimit: Number(timeLimitInput.value),
+    range: Number(rangeInput.value),
+    symmetric: symmetricInput.value === 'yes',
+    sizeMin: Number(sizeMinInput.value),
+    sizeMax: Number(sizeMaxInput.value),
+    mode: modeInput.value,
+    difficulty: difficultyInput.value
+  };
+}
+
+function getMultiSettings() {
+  if (selectedPresetMulti !== 'custom') {
+    return { ...PRESETS[selectedPresetMulti] };
+  }
+  return {
+    timeLimit: Number(mpTimeLimitInput.value),
+    range: Number(mpRangeInput.value),
+    symmetric: mpSymmetricInput.value === 'yes',
+    sizeMin: Number(mpSizeMinInput.value),
+    sizeMax: Number(mpSizeMaxInput.value)
+  };
 }
 
 function updateStartButtonLabel() {
@@ -442,33 +507,57 @@ function updateStartButtonLabel() {
     isHost: multiplayer.isHost,
     started: multiplayer.started
   });
-  if (!multiplayer.enabled) {
-    startBtn.textContent = 'start';
-    if (mpStartBtn) mpStartBtn.classList.add('hidden');
-    return;
-  }
-  if (!multiplayer.inRoom) {
-    startBtn.textContent = 'create room';
-    if (mpStartBtn) mpStartBtn.classList.add('hidden');
-    return;
-  }
-  if (multiplayer.isHost && !multiplayer.started) {
-    startBtn.textContent = 'start match';
-    if (mpStartBtn) {
+  startBtn.textContent = 'start';
+  if (mpStartBtn) {
+    if (!multiplayer.inRoom) {
+      mpStartBtn.classList.add('hidden');
+      mpStartBtn.disabled = true;
+    } else if (multiplayer.isHost && !multiplayer.started) {
       mpStartBtn.classList.remove('hidden');
       mpStartBtn.disabled = false;
+    } else {
+      mpStartBtn.classList.remove('hidden');
+      mpStartBtn.disabled = true;
     }
-    return;
   }
-  if (multiplayer.started) {
-    startBtn.textContent = 'in match';
-    if (mpStartBtn) mpStartBtn.classList.add('hidden');
-    return;
+}
+
+function setStartTab(tab) {
+  activeStartTab = tab;
+  if (tabSingleBtn) tabSingleBtn.classList.toggle('active', tab === 'single');
+  if (tabMultiBtn) tabMultiBtn.classList.toggle('active', tab === 'multi');
+  if (panelSingle) panelSingle.classList.toggle('hidden', tab !== 'single');
+  if (panelMulti) panelMulti.classList.toggle('hidden', tab !== 'multi');
+  if (tab === 'single') {
+    if (multiplayer.inRoom) handleMultiplayerLeave();
+    multiplayer.enabled = false;
+  } else {
+    multiplayer.enabled = true;
   }
-  startBtn.textContent = 'waiting...';
-  if (mpStartBtn) {
-    mpStartBtn.classList.remove('hidden');
-    mpStartBtn.disabled = true;
+  updateStartButtonLabel();
+}
+
+function setMpTab(tab) {
+  activeMpTab = tab;
+  if (mpTabCreate) mpTabCreate.classList.toggle('active', tab === 'create');
+  if (mpTabJoin) mpTabJoin.classList.toggle('active', tab === 'join');
+  if (mpTabPublic) mpTabPublic.classList.toggle('active', tab === 'public');
+  if (mpPanelCreate) mpPanelCreate.classList.toggle('hidden', tab !== 'create');
+  if (mpPanelJoin) mpPanelJoin.classList.toggle('hidden', tab !== 'join');
+  if (mpPanelPublic) mpPanelPublic.classList.toggle('hidden', tab !== 'public');
+}
+
+function selectPreset(presetKey, scope = 'single') {
+  if (scope === 'single') {
+    selectedPresetSingle = presetKey;
+    setPresetButtons(presetGrid, presetKey);
+    if (customSettingsEl) customSettingsEl.classList.toggle('hidden', presetKey !== 'custom');
+    if (presetKey !== 'custom') applyPresetToInputs(PRESETS[presetKey], 'single');
+  } else {
+    selectedPresetMulti = presetKey;
+    setPresetButtons(mpPresetGrid, presetKey);
+    if (mpCustomSettingsEl) mpCustomSettingsEl.classList.toggle('hidden', presetKey !== 'custom');
+    if (presetKey !== 'custom') applyPresetToInputs(PRESETS[presetKey], 'multi');
   }
 }
 
@@ -482,12 +571,13 @@ function renderPublicRooms(rooms) {
   rooms.forEach((room) => {
     const row = document.createElement('div');
     row.className = 'mp-room';
-    row.innerHTML = `<span>${room.id} · ${room.players}/${room.maxPlayers}</span>`;
+    row.innerHTML = `<span>${room.name || 'room'} · ${room.id} · ${room.players}/${room.maxPlayers}</span>`;
     const btn = document.createElement('button');
     btn.className = 'ghost';
     btn.textContent = 'join';
     btn.addEventListener('click', () => {
-      if (mpRoomInput) mpRoomInput.value = room.id;
+      if (mpRoomCodeInput) mpRoomCodeInput.value = room.id;
+      setMpTab('join');
       handleMultiplayerJoin();
     });
     row.appendChild(btn);
@@ -570,8 +660,7 @@ function handleWsMessage(data) {
   }
   if (data.type === 'room:state') {
     multiplayer.enabled = true;
-    if (multiplayerInput) multiplayerInput.value = 'multi';
-    if (mpControlsEl) mpControlsEl.classList.remove('hidden');
+    setStartTab('multi');
     const wasInRoom = multiplayer.inRoom;
     const prevRoomId = multiplayer.roomId;
     multiplayer.inRoom = true;
@@ -588,10 +677,11 @@ function handleWsMessage(data) {
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
       ? (multiplayer.isHost ? 'room created' : 'joined room')
       : 'room';
-    const displayName = data.room.displayName ? ` ${data.room.displayName}` : '';
-    setRoomStatus(`${statusPrefix}:${displayName}`);
-    if (mpRoomInput) mpRoomInput.value = `${data.room.displayName || 'room'} ${data.room.id}`;
-    setMultiplayerStatus(`code: ${data.room.id} · ${data.room.players} players`);
+    const displayName = data.room.displayName || 'room';
+    setRoomStatus(`${statusPrefix}: ${displayName}<br>code: ${data.room.id}`);
+    if (mpRoomNameInput) mpRoomNameInput.value = data.room.displayName || 'room';
+    if (mpRoomCodeInput) mpRoomCodeInput.value = data.room.id;
+    setMultiplayerStatus(`code: ${data.room.id}`);
     renderMultiplayerPlayers(data.room.playersList || []);
     updateStartButtonLabel();
     return;
@@ -657,26 +747,23 @@ function ensureMultiplayerSocket() {
 
 function handleMultiplayerCreate() {
   console.log('[mp] create click', {
-    mode: modeInput.value,
-    room: mpRoomInput?.value,
+    mode: mpModeInput?.value,
+    room: mpRoomNameInput?.value,
     name: getMultiplayerName()
   });
   const name = getMultiplayerName();
-  const { name: roomName } = parseRoomInput();
+  const roomName = mpRoomNameInput?.value.trim() || 'room';
   const password = mpPasswordInput?.value.trim() || '';
+  const baseSettings = getMultiSettings();
   const payload = {
     type: 'room:create',
     name,
-    displayName: roomName || 'room',
+    displayName: roomName,
     password,
-    mode: modeInput.value,
+    mode: mpModeInput?.value || 'classic',
     settings: {
-      timeLimit: Number(timeLimitInput.value),
-      range: Number(rangeInput.value),
-      symmetric: symmetricInput.value === 'yes',
-      sizeMin: Number(sizeMinInput.value),
-      sizeMax: Number(sizeMaxInput.value),
-      difficulty: difficultyInput.value
+      ...baseSettings,
+      difficulty: mpDifficultyInput?.value || 'medium'
     }
   };
   sendWsWhenReady(payload);
@@ -684,17 +771,16 @@ function handleMultiplayerCreate() {
 
 function handleMultiplayerJoin() {
   console.log('[mp] join click', {
-    room: mpRoomInput?.value,
+    room: mpRoomCodeInput?.value,
     name: getMultiplayerName()
   });
-  const { code } = parseRoomInput();
-  const roomId = code.toUpperCase();
+  const roomId = (mpRoomCodeInput?.value || '').trim().toUpperCase();
   if (!roomId) {
     setMultiplayerStatus('enter a room code to join');
     return;
   }
   const name = getMultiplayerName();
-  const password = mpPasswordInput?.value.trim() || '';
+  const password = mpJoinPasswordInput?.value.trim() || '';
   sendWsWhenReady({ type: 'room:join', roomId, name, password });
 }
 
@@ -712,7 +798,7 @@ function handleMultiplayerLeave() {
 }
 
 function handleMultiplayerStartClick() {
-  multiplayer.enabled = isMultiplayerValue(multiplayerInput?.value);
+  multiplayer.enabled = activeStartTab === 'multi';
   console.log('[mp] start click', {
     enabled: multiplayer.enabled,
     inRoom: multiplayer.inRoom,
@@ -724,7 +810,7 @@ function handleMultiplayerStartClick() {
     return;
   }
   if (!multiplayer.inRoom) {
-    const roomCode = mpRoomInput?.value.trim();
+    const roomCode = mpRoomCodeInput?.value.trim();
     if (roomCode) {
       handleMultiplayerJoin();
     } else {
@@ -1474,12 +1560,9 @@ function startGame(options = {}) {
     return;
   }
   if (!fromMultiplayer) {
+    const base = getSingleSettings();
     settings = {
-      timeLimit: Number(timeLimitInput.value),
-      range: Number(rangeInput.value),
-      symmetric: symmetricInput.value === 'yes',
-      sizeMin: Number(sizeMinInput.value),
-      sizeMax: Number(sizeMaxInput.value),
+      ...base,
       mode: modeInput.value,
       difficulty: difficultyInput.value
     };
@@ -1631,24 +1714,35 @@ function showOnlyScreen(target) {
   });
 }
 
-startBtn.addEventListener('click', handleMultiplayerStartClick);
+startBtn.addEventListener('click', startGame);
 editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
-  if (multiplayerInput && mpControlsEl) {
-    multiplayerInput.addEventListener('change', () => {
-      multiplayer.enabled = isMultiplayerValue(multiplayerInput.value);
-      mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
-      if (!multiplayer.enabled && multiplayer.inRoom) {
-        handleMultiplayerLeave();
-      }
-      if (multiplayer.enabled) {
-        setMultiplayerStatus('create a room or join with a code');
-      }
-      updateStartButtonLabel();
-    });
-  }
+if (tabSingleBtn) tabSingleBtn.addEventListener('click', () => setStartTab('single'));
+if (tabMultiBtn) tabMultiBtn.addEventListener('click', () => setStartTab('multi'));
+if (mpTabCreate) mpTabCreate.addEventListener('click', () => setMpTab('create'));
+if (mpTabJoin) mpTabJoin.addEventListener('click', () => setMpTab('join'));
+if (mpTabPublic) mpTabPublic.addEventListener('click', () => setMpTab('public'));
+if (mpModeInput && mpDifficultyWrap) {
+  mpModeInput.addEventListener('change', () => {
+    mpDifficultyWrap.classList.toggle('hidden', mpModeInput.value !== 'battle');
+  });
+}
+if (presetGrid) {
+  presetGrid.addEventListener('click', (event) => {
+    const btn = event.target.closest('.preset');
+    if (!btn) return;
+    selectPreset(btn.dataset.preset, 'single');
+  });
+}
+if (mpPresetGrid) {
+  mpPresetGrid.addEventListener('click', (event) => {
+    const btn = event.target.closest('.preset');
+    if (!btn) return;
+    selectPreset(btn.dataset.preset, 'multi');
+  });
+}
 if (mpCreateBtn) mpCreateBtn.addEventListener('click', handleMultiplayerCreate);
 if (mpJoinBtn) mpJoinBtn.addEventListener('click', handleMultiplayerJoin);
 if (mpListBtn) mpListBtn.addEventListener('click', handleMultiplayerList);
@@ -1691,31 +1785,23 @@ document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space') return;
   if (screenDeploy.classList.contains('hidden')) return;
   event.preventDefault();
-  if (multiplayer.enabled) {
-    handleMultiplayerStartClick();
-  } else {
-    startGame();
-  }
+  if (activeStartTab === 'single') startGame();
 });
 
 window.addEventListener('load', () => {
   statsEl.style.visibility = 'hidden';
-  timeLimitInput.value = DEFAULT_TIME_LIMIT;
-  rangeInput.value = DEFAULT_RANGE;
-  sizeMinInput.value = `${DEFAULT_SIZE_MIN}`;
-  sizeMaxInput.value = `${DEFAULT_SIZE_MAX}`;
-  symmetricInput.value = DEFAULT_SYMMETRIC ? 'yes' : 'no';
+  applyPresetToInputs(PRESETS[selectedPresetSingle], 'single');
   modeInput.value = DEFAULT_MODE;
   difficultyInput.value = DEFAULT_DIFFICULTY;
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
-  if (multiplayerInput && mpControlsEl) {
-    multiplayer.enabled = isMultiplayerValue(multiplayerInput.value);
-    mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
-    if (multiplayer.enabled) {
-      setMultiplayerStatus('create a room or join with a code');
-    }
-    updateStartButtonLabel();
-  }
+  applyPresetToInputs(PRESETS[selectedPresetMulti], 'multi');
+  if (mpModeInput) mpModeInput.value = 'classic';
+  if (mpDifficultyInput) mpDifficultyInput.value = DEFAULT_DIFFICULTY;
+  if (mpDifficultyWrap) mpDifficultyWrap.classList.add('hidden');
+  setStartTab('single');
+  setMpTab('create');
+  selectPreset(selectedPresetSingle, 'single');
+  selectPreset(selectedPresetMulti, 'multi');
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
   if (API_BASE_URL) {
     const stored = localStorage.getItem('eigenmac_auth');

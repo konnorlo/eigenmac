@@ -85,6 +85,7 @@ const listPublicRooms = () => {
     if (!room.isPublic || room.ended) return;
     items.push({
       id: room.id,
+      name: room.displayName,
       players: room.players.size,
       maxPlayers: room.maxPlayers
     });

@@ -52,79 +52,174 @@
 
     <section class="screen" id="screen-start">
       <div class="card">
-        <div class="settings-title">start</div>
-        <div class="settings-grid">
-          <label>
-            time (s)
-            <input id="time-limit" type="number" min="10" max="600" value="60" />
-          </label>
-          <label>
-            dimensions range
-            <div class="range-row">
-              <select id="size-min">
-                <option value="2" selected>2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-              </select>
-              <span class="range-dash">to</span>
-              <select id="size-max">
-                <option value="2">2</option>
-                <option value="3" selected>3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-              </select>
+        <div class="start-header">
+          <div class="brand-title">eigenmac</div>
+          <div class="tab-row">
+            <button class="tab active" id="tab-single">singleplayer</button>
+            <button class="tab" id="tab-multi">multiplayer</button>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="panel-single">
+          <div class="section-title">presets</div>
+          <div class="preset-grid" id="preset-grid">
+            <button class="preset active" data-preset="p2">120s · 2×2 · range 8 · no sym</button>
+            <button class="preset" data-preset="p3">120s · 3×3 · range 6 · no sym</button>
+            <button class="preset" data-preset="p4">120s · 4×4 · range 5 · no sym</button>
+            <button class="preset" data-preset="p5">120s · 5×5 · range 4 · no sym</button>
+            <button class="preset" data-preset="custom">custom</button>
+          </div>
+
+          <div class="custom-settings hidden" id="custom-settings">
+            <div class="settings-grid">
+              <label>
+                time (s)
+                <input id="time-limit" type="number" min="10" max="600" value="120" />
+              </label>
+              <label>
+                dimensions range
+                <div class="range-row">
+                  <select id="size-min">
+                    <option value="2" selected>2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                  <span class="range-dash">to</span>
+                  <select id="size-max">
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </div>
+              </label>
+              <label>
+                integer range (|value| ≤)
+                <input id="range" type="number" min="1" max="20" value="6" />
+              </label>
+              <label>
+                symmetric matrices
+                <select id="symmetric">
+                  <option value="yes">Yes</option>
+                  <option value="no" selected>No</option>
+                </select>
+              </label>
             </div>
-          </label>
-          <label>
-            integer range (|value| ≤)
-            <input id="range" type="number" min="1" max="20" value="5" />
-          </label>
-          <label>
-            symmetric matrices
-            <select id="symmetric">
-              <option value="yes" selected>Yes</option>
-              <option value="no">No</option>
-            </select>
-          </label>
-          <label>
-            mode
-            <select id="mode">
-              <option value="classic" selected>classic</option>
-              <option value="battle">battle royale</option>
-            </select>
-          </label>
-          <label>
-            multiplayer
-            <select id="multiplayer">
-              <option value="solo" selected>solo</option>
-              <option value="multi">multiplayer</option>
-            </select>
-          </label>
-          <label id="difficulty-wrap" class="hidden">
-            difficulty
-            <select id="difficulty">
-              <option value="easy">easy</option>
-              <option value="medium" selected>medium</option>
-              <option value="hard">hard</option>
-              <option value="improbable">improbable</option>
-            </select>
-          </label>
-          <div class="mp-controls hidden" id="mp-controls">
+          </div>
+
+          <div class="settings-row">
             <label>
-              room name + code
-              <input id="mp-room" type="text" placeholder="team alpha ABCDEF" />
+              mode
+              <select id="mode">
+                <option value="classic" selected>classic</option>
+                <option value="battle">battle royale</option>
+              </select>
             </label>
-            <label>
-              room password (optional)
-              <input id="mp-password" type="text" placeholder="password" />
+            <label id="difficulty-wrap" class="hidden">
+              difficulty
+              <select id="difficulty">
+                <option value="easy">easy</option>
+                <option value="medium" selected>medium</option>
+                <option value="hard">hard</option>
+                <option value="improbable">improbable</option>
+              </select>
             </label>
-            <div class="mp-actions">
-              <button id="mp-create" class="ghost">create room</button>
-              <button id="mp-join" class="ghost">join room</button>
-              <button id="mp-list" class="ghost">public rooms</button>
+          </div>
+          <div class="settings-hint">eigenvalues are always integers.</div>
+          <div class="actions">
+            <button id="start" class="primary">start</button>
+          </div>
+        </div>
+
+        <div class="tab-panel hidden" id="panel-multi">
+          <div class="section-title">multiplayer</div>
+          <div class="mp-tabs">
+            <button class="tab active" id="mp-tab-create">create room</button>
+            <button class="tab" id="mp-tab-join">join room</button>
+            <button class="tab" id="mp-tab-public">public rooms</button>
+          </div>
+
+          <div class="mp-panel" id="mp-panel-create">
+            <div class="settings-grid">
+              <label>
+                room name
+                <input id="mp-room-name" type="text" placeholder="team alpha" />
+              </label>
+              <label>
+                room password (optional)
+                <input id="mp-password" type="text" placeholder="password" />
+              </label>
             </div>
-            <div class="mp-rooms" id="mp-rooms"></div>
+
+            <div class="section-title">presets</div>
+            <div class="preset-grid" id="mp-preset-grid">
+              <button class="preset active" data-preset="p2">120s · 2×2 · range 8 · no sym</button>
+              <button class="preset" data-preset="p3">120s · 3×3 · range 6 · no sym</button>
+              <button class="preset" data-preset="p4">120s · 4×4 · range 5 · no sym</button>
+              <button class="preset" data-preset="p5">120s · 5×5 · range 4 · no sym</button>
+              <button class="preset" data-preset="custom">custom</button>
+            </div>
+            <div class="custom-settings hidden" id="mp-custom-settings">
+              <div class="settings-grid">
+                <label>
+                  time (s)
+                  <input id="mp-time-limit" type="number" min="10" max="600" value="120" />
+                </label>
+                <label>
+                  dimensions range
+                  <div class="range-row">
+                    <select id="mp-size-min">
+                      <option value="2" selected>2</option>
+                      <option value="3">3</option>
+                      <option value="4">4</option>
+                      <option value="5">5</option>
+                    </select>
+                    <span class="range-dash">to</span>
+                    <select id="mp-size-max">
+                      <option value="2">2</option>
+                      <option value="3" selected>3</option>
+                      <option value="4">4</option>
+                      <option value="5">5</option>
+                    </select>
+                  </div>
+                </label>
+                <label>
+                  integer range (|value| ≤)
+                  <input id="mp-range" type="number" min="1" max="20" value="6" />
+                </label>
+                <label>
+                  symmetric matrices
+                  <select id="mp-symmetric">
+                    <option value="yes">Yes</option>
+                    <option value="no" selected>No</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <label>
+                mode
+                <select id="mp-mode">
+                  <option value="classic" selected>classic</option>
+                  <option value="battle">battle royale</option>
+                </select>
+              </label>
+              <label id="mp-difficulty-wrap" class="hidden">
+                difficulty
+                <select id="mp-difficulty">
+                  <option value="easy">easy</option>
+                  <option value="medium" selected>medium</option>
+                  <option value="hard">hard</option>
+                  <option value="improbable">improbable</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button id="mp-create" class="primary">create room</button>
+            </div>
             <div class="mp-room-status" id="mp-room-status"></div>
             <div class="mp-players-title" id="mp-players-title">Players:</div>
             <div class="mp-players" id="mp-players"></div>
@@ -133,10 +228,29 @@
               <button id="mp-start" class="primary hidden" disabled>start game</button>
             </div>
           </div>
-        </div>
-        <div class="settings-hint">eigenvalues are always integers.</div>
-        <div class="actions">
-          <button id="start" class="primary">start</button>
+
+          <div class="mp-panel hidden" id="mp-panel-join">
+            <div class="settings-grid">
+              <label>
+                room code
+                <input id="mp-room-code" type="text" placeholder="ABCDEF" />
+              </label>
+              <label>
+                room password (optional)
+                <input id="mp-join-password" type="text" placeholder="password" />
+              </label>
+            </div>
+            <div class="actions">
+              <button id="mp-join" class="primary">join room</button>
+            </div>
+          </div>
+
+          <div class="mp-panel hidden" id="mp-panel-public">
+            <div class="mp-actions">
+              <button id="mp-list" class="ghost">refresh public rooms</button>
+            </div>
+            <div class="mp-rooms" id="mp-rooms"></div>
+          </div>
         </div>
       </div>
     </section>

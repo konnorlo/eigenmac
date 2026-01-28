@@ -460,6 +460,87 @@ button {
   margin-bottom: 16px;
 }
 
+.start-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.brand-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tab-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tab {
+  border: 2px solid var(--border);
+  background: #ffffff;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+}
+
+.tab.active {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.tab-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.section-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.preset-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.preset {
+  border: 2px solid var(--border);
+  background: #ffffff;
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.preset.active {
+  border-color: var(--text);
+}
+
+.custom-settings {
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .settings-grid {
   display: grid;
   gap: 14px;
@@ -575,6 +656,16 @@ button {
   color: var(--muted);
   font-size: 0.95rem;
   margin-top: 14px;
+}
+
+.mp-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.mp-panel {
+  display: grid;
+  gap: 14px;
 }
 
 
