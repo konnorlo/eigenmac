@@ -94,6 +94,13 @@
               <option value="battle">battle royale</option>
             </select>
           </label>
+          <label>
+            multiplayer
+            <select id="multiplayer">
+              <option value="solo" selected>solo</option>
+              <option value="multi">multiplayer</option>
+            </select>
+          </label>
           <label id="difficulty-wrap" class="hidden">
             difficulty
             <select id="difficulty">
@@ -103,6 +110,26 @@
               <option value="improbable">improbable</option>
             </select>
           </label>
+          <div class="mp-controls hidden" id="mp-controls">
+            <label>
+              display name
+              <input id="mp-name" type="text" placeholder="name" />
+            </label>
+            <label>
+              room code (optional)
+              <input id="mp-room" type="text" placeholder="ABCDE" />
+            </label>
+            <label>
+              room password (optional)
+              <input id="mp-password" type="text" placeholder="password" />
+            </label>
+            <div class="mp-actions">
+              <button id="mp-create" class="ghost">create room</button>
+              <button id="mp-join" class="ghost">join room</button>
+              <button id="mp-list" class="ghost">public rooms</button>
+            </div>
+            <div class="mp-rooms" id="mp-rooms"></div>
+          </div>
         </div>
         <div class="settings-hint">eigenvalues are always integers.</div>
         <div class="actions">
@@ -119,6 +146,8 @@
         </aside>
         <div class="card">
         <div class="matrix-title">find eigenvalues</div>
+        <div class="mp-status" id="mp-status"></div>
+        <button id="mp-leave" class="ghost hidden">leave room</button>
         <div class="matrix" id="matrix"></div>
         <div class="answer" id="answer"></div>
         <div class="feedback" id="feedback"></div>

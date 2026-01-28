@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
+import { WebSocketServer } from 'ws';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -19,6 +21,70 @@ app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
+
+const MAX_PLAYERS = 100;
+const ROOM_TTL_MS = 10 * 60 * 1000;
+const CUT_TIMES = [23, 39, 55, 66, 78, 94, 109, 125, 140];
+const CUT_RANKS = [60, 45, 30, 25, 18, 12, 8, 5, 3];
+const BATTLE_DURATION = 110;
+const BATTLE_MEAN_MULT = 0.9;
+const BOT_MEAN_RATE = 0.1;
+const BOT_STD_RATE = 0.04;
+const DIFFICULTY_PARAMS = {
+  easy: { mean: 0.07, std: 0.04 },
+  medium: { mean: 0.1, std: 0.05 },
+  hard: { mean: 0.13, std: 0.06 },
+  improbable: { mean: 0.17, std: 0.08 }
+};
+
+const rooms = new Map();
+const clients = new Map();
+
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randNormal = (mean, std) => {
+  let u = 0;
+  let v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  const num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  return num * std + mean;
+};
+const shuffle = (arr) => {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = randInt(0, i);
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
+const factorial = (n) => {
+  let out = 1;
+  for (let i = 2; i <= n; i += 1) out *= i;
+  return out;
+};
+
+const createRoomId = () => {
+  const id = crypto.randomBytes(3).toString('hex').toUpperCase();
+  return id;
+};
+
+const averageSizeFactor = (settings) => {
+  const avgSize = (settings.sizeMin + settings.sizeMax) / 2;
+  return 2 / (Math.max(2, avgSize) ** 1.21);
+};
+
+const listPublicRooms = () => {
+  const items = [];
+  rooms.forEach((room) => {
+    if (!room.isPublic || room.ended) return;
+    items.push({
+      id: room.id,
+      players: room.players.size,
+      maxPlayers: room.maxPlayers
+    });
+  });
+  return items;
+};
 
 const signupSchema = z.object({
   username: z.string().min(3).max(24).regex(/^[a-zA-Z0-9_]+$/),
@@ -199,6 +265,359 @@ app.get('/power-leaderboard', async (_req, res) => {
   res.json({ items });
 });
 
-app.listen(PORT, () => {
+const BOT_NAMES = [
+  'Marla Kingsley',
+  'Devon Pike',
+  'Avery Holt',
+  'Rowan Hale',
+  'Sloan Mercer',
+  'Quinn Calder',
+  'Talia Wren',
+  'Elias Brook',
+  'Nora Voss',
+  'Milo Hart',
+  'Juno Vale',
+  'Sasha Reed',
+  'Iris Dane',
+  'Luca Frost',
+  'Remy Clarke',
+  'Vera Lane',
+  'Alden Cross',
+  'Mae Lennox',
+  'Zara Finch',
+  'Theo Black'
+];
+
+const createBot = (name, mean, std) => ({
+  id: `bot_${crypto.randomUUID()}`,
+  name,
+  score: 0,
+  alive: true,
+  lastScoreTime: 0,
+  baseRate: Math.max(0.02, randNormal(mean, std)),
+  isBot: true
+});
+
+const syncBots = (room) => {
+  if (room.started) return;
+  const target = Math.max(0, room.maxPlayers - room.players.size);
+  if (room.bots.length > target) {
+    room.bots = room.bots.slice(0, target);
+    return;
+  }
+  if (room.bots.length < target) {
+    const names = shuffle(BOT_NAMES);
+    const diff = DIFFICULTY_PARAMS[room.settings.difficulty] || DIFFICULTY_PARAMS.medium;
+    const mean = room.mode === 'battle' ? diff.mean * BATTLE_MEAN_MULT : BOT_MEAN_RATE;
+    const std = room.mode === 'battle' ? diff.std : BOT_STD_RATE;
+    while (room.bots.length < target) {
+      const name = names[room.bots.length % names.length];
+      room.bots.push(createBot(name, mean, std));
+    }
+  }
+};
+
+const send = (ws, payload) => {
+  if (ws.readyState !== 1) return;
+  ws.send(JSON.stringify(payload));
+};
+
+const broadcast = (room, payload) => {
+  room.players.forEach((player) => {
+    const client = clients.get(player.id);
+    if (client?.ws) {
+      send(client.ws, payload);
+    }
+  });
+};
+
+const getParticipants = (room) => {
+  const players = Array.from(room.players.values()).map((p) => ({ ...p, isBot: false }));
+  return [...players, ...room.bots];
+};
+
+const computeLeaderboard = (room) => {
+  return getParticipants(room)
+    .filter((p) => p.alive)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.lastScoreTime - b.lastScoreTime;
+    });
+};
+
+const computePlacement = (room, player) => {
+  const alive = getParticipants(room).filter((p) => p.alive);
+  return 1 + alive.filter((p) =>
+    p.score > player.score || (p.score === player.score && p.lastScoreTime < player.lastScoreTime)
+  ).length;
+};
+
+const applyCut = (room, percent) => {
+  const alive = getParticipants(room).filter((p) => p.alive);
+  if (alive.length <= 1) return;
+  const keepCount = Math.max(1, Math.ceil(alive.length * (percent / 100)));
+  const cutCount = Math.max(0, alive.length - keepCount);
+  alive.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.lastScoreTime - b.lastScoreTime;
+  });
+  for (let i = 0; i < cutCount; i += 1) {
+    alive[i].alive = false;
+  }
+};
+
+const updateBots = (room) => {
+  const sizeFactor = averageSizeFactor(room.settings);
+  room.bots.forEach((bot) => {
+    if (!bot.alive) return;
+    const expected = Math.floor(bot.baseRate * sizeFactor * room.t);
+    if (bot.score < expected) {
+      bot.score = expected;
+      bot.lastScoreTime = room.t;
+    }
+  });
+};
+
+const sendRoomState = (room) => {
+  const payload = {
+    type: 'room:state',
+    room: {
+      id: room.id,
+      mode: room.mode,
+      settings: room.settings,
+      started: room.started,
+      hostId: room.hostId,
+      players: room.players.size,
+      maxPlayers: room.maxPlayers
+    }
+  };
+  broadcast(room, payload);
+};
+
+const sendRoomTick = (room) => {
+  const leaderboard = computeLeaderboard(room).slice(0, 20);
+  room.players.forEach((player) => {
+    const client = clients.get(player.id);
+    if (!client?.ws) return;
+    const placement = computePlacement(room, player);
+    const nextCutTime = Math.min(CUT_TIMES[room.cutIndex] ?? BATTLE_DURATION, BATTLE_DURATION);
+    const nextCutIn = Math.max(0, nextCutTime - room.t);
+    const status = room.mode === 'battle'
+      ? `placement: ${placement}/${getParticipants(room).filter((p) => p.alive).length} · next cut in ${nextCutIn}s`
+      : `placement: ${placement}/${getParticipants(room).length}`;
+    send(client.ws, {
+      type: 'room:tick',
+      timeLeft: room.timeLeft,
+      leaderboard,
+      placement,
+      status,
+      settings: room.settings
+    });
+  });
+};
+
+const startRoom = (room) => {
+  if (room.started) return;
+  room.started = true;
+  room.ended = false;
+  room.t = 0;
+  room.cutIndex = 0;
+  room.timeLeft = room.mode === 'battle' ? BATTLE_DURATION : room.settings.timeLimit;
+  syncBots(room);
+  sendRoomState(room);
+  sendRoomTick(room);
+  if (room.interval) clearInterval(room.interval);
+  room.interval = setInterval(() => {
+    room.t += 1;
+    room.timeLeft = Math.max(0, room.timeLeft - 1);
+    updateBots(room);
+    if (room.mode === 'battle') {
+      const nextCutTime = CUT_TIMES[room.cutIndex];
+      const nextCutRank = CUT_RANKS[room.cutIndex];
+      if (nextCutTime !== undefined && nextCutTime <= BATTLE_DURATION && room.t >= nextCutTime) {
+        applyCut(room, nextCutRank ?? 80);
+        room.cutIndex += 1;
+      }
+    }
+    sendRoomTick(room);
+    const aliveCount = getParticipants(room).filter((p) => p.alive).length;
+    if (room.timeLeft <= 0 || (room.mode === 'battle' && aliveCount <= 1)) {
+      room.started = false;
+      room.ended = true;
+      clearInterval(room.interval);
+      room.interval = null;
+      broadcast(room, { type: 'room:end', status: 'match ended' });
+    }
+  }, 1000);
+};
+
+const cleanupRooms = () => {
+  const now = Date.now();
+  rooms.forEach((room, roomId) => {
+    if (room.players.size === 0 && now - room.createdAt > ROOM_TTL_MS) {
+      if (room.interval) clearInterval(room.interval);
+      rooms.delete(roomId);
+    }
+  });
+};
+
+setInterval(cleanupRooms, 60 * 1000);
+
+const httpServer = app.listen(PORT, () => {
   console.log(`API listening on :${PORT}`);
+});
+
+const wss = new WebSocketServer({ server: httpServer });
+
+wss.on('connection', (ws) => {
+  const clientId = crypto.randomUUID();
+  clients.set(clientId, { ws, roomId: null });
+  send(ws, { type: 'hello', clientId });
+
+  ws.on('message', (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    if (!msg?.type) return;
+    const client = clients.get(clientId);
+    if (!client) return;
+
+    if (msg.type === 'room:list') {
+      send(ws, { type: 'room:list', rooms: listPublicRooms() });
+      return;
+    }
+
+    if (msg.type === 'room:create') {
+      const id = createRoomId();
+      const password = msg.password || '';
+      const incoming = msg.settings || {};
+      const settings = {
+        timeLimit: Number(incoming.timeLimit ?? 120),
+        range: Number(incoming.range ?? 6),
+        symmetric: Boolean(incoming.symmetric),
+        sizeMin: Number(incoming.sizeMin ?? 2),
+        sizeMax: Number(incoming.sizeMax ?? 3),
+        difficulty: incoming.difficulty ?? 'medium'
+      };
+      const mode = msg.mode === 'battle' ? 'battle' : 'classic';
+      const room = {
+        id,
+        mode,
+        settings,
+        hostId: clientId,
+        isPublic: !password,
+        password,
+        players: new Map(),
+        bots: [],
+        maxPlayers: MAX_PLAYERS,
+        createdAt: Date.now(),
+        started: false,
+        ended: false,
+        t: 0,
+        cutIndex: 0,
+        timeLeft: 0,
+        interval: null
+      };
+      room.players.set(clientId, {
+        id: clientId,
+        name: msg.name || 'player',
+        score: 0,
+        alive: true,
+        lastScoreTime: 0
+      });
+      rooms.set(id, room);
+      client.roomId = id;
+      syncBots(room);
+      sendRoomState(room);
+      return;
+    }
+
+    if (msg.type === 'room:join') {
+      const room = rooms.get(msg.roomId);
+      if (!room) {
+        send(ws, { type: 'room:error', message: 'room not found' });
+        return;
+      }
+      if (room.started) {
+        send(ws, { type: 'room:error', message: 'match already started' });
+        return;
+      }
+      if (room.password && room.password !== msg.password) {
+        send(ws, { type: 'room:error', message: 'wrong password' });
+        return;
+      }
+      if (room.players.size >= room.maxPlayers) {
+        send(ws, { type: 'room:error', message: 'room full' });
+        return;
+      }
+      room.players.set(clientId, {
+        id: clientId,
+        name: msg.name || 'player',
+        score: 0,
+        alive: true,
+        lastScoreTime: 0
+      });
+      client.roomId = room.id;
+      syncBots(room);
+      sendRoomState(room);
+      return;
+    }
+
+    if (msg.type === 'room:leave') {
+      if (client.roomId) {
+        const room = rooms.get(client.roomId);
+        if (room) {
+          room.players.delete(clientId);
+          if (room.hostId === clientId) {
+            const nextHost = room.players.keys().next().value;
+            room.hostId = nextHost || null;
+          }
+          syncBots(room);
+          sendRoomState(room);
+        }
+        client.roomId = null;
+      }
+      return;
+    }
+
+    if (msg.type === 'room:start') {
+      const room = rooms.get(client.roomId);
+      if (!room || room.hostId !== clientId) return;
+      startRoom(room);
+      return;
+    }
+
+    if (msg.type === 'game:score') {
+      const room = rooms.get(client.roomId);
+      if (!room || !room.started) return;
+      const player = room.players.get(clientId);
+      if (!player || !player.alive) return;
+      const nextScore = Math.max(player.score, Number(msg.score || 0));
+      if (nextScore !== player.score) {
+        player.score = nextScore;
+        player.lastScoreTime = room.t;
+        sendRoomTick(room);
+      }
+    }
+  });
+
+  ws.on('close', () => {
+    const client = clients.get(clientId);
+    if (client?.roomId) {
+      const room = rooms.get(client.roomId);
+      if (room) {
+        room.players.delete(clientId);
+        if (room.hostId === clientId) {
+          const nextHost = room.players.keys().next().value;
+          room.hostId = nextHost || null;
+        }
+        syncBots(room);
+        sendRoomState(room);
+      }
+    }
+    clients.delete(clientId);
+  });
 });
