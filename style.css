@@ -55,7 +55,7 @@ body {
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  width: 280px;
+  width: 580px;
   display: grid;
   gap: 8px;
   transform: scale(0.5);
