@@ -29,6 +29,36 @@ const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
 
 const isMultiplayerValue = (value) => value === 'multi' || value === 'multiplayer';
 
+function xmur3(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i += 1) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+}
+
+function mulberry32(seed) {
+  return () => {
+    let t = (seed += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getProblemRng() {
+  if (!multiplayer.enabled || !multiplayer.seed) return Math.random;
+  const seedFn = xmur3(`${multiplayer.seed}:${multiplayer.problemIndex}`);
+  const seed = seedFn();
+  return mulberry32(seed);
+}
+
 
 const BATTLE_DURATION = 110;
 const BATTLE_COMPETITORS = 99;
@@ -229,6 +259,8 @@ let multiplayer = {
   timeLeft: 0,
   nextCutIn: 0,
   lastRoomId: null,
+  seed: null,
+  problemIndex: 0,
   ws: null
 };
 
@@ -256,19 +288,19 @@ function hideStaticDvd() {
   dvdTemplate.style.display = 'none';
 }
 
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function randInt(min, max, rng = Math.random) {
+  return Math.floor(rng() * (max - min + 1)) + min;
 }
 
-function randFloat(min, max) {
-  return Math.random() * (max - min) + min;
+function randFloat(min, max, rng = Math.random) {
+  return rng() * (max - min) + min;
 }
 
-function randNormal(mean, std) {
+function randNormal(mean, std, rng = Math.random) {
   let u = 0;
   let v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
+  while (u === 0) u = rng();
+  while (v === 0) v = rng();
   const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
   return mean + z * std;
 }
@@ -389,12 +421,15 @@ function setRoomStatus(text) {
 }
 
 function parseRoomInput() {
-  const raw = mpRoomInput?.value.trim() || '';
+  const raw = (mpRoomInput?.value || '').trim();
   if (!raw) return { name: '', code: '' };
+  if (/^[A-Z0-9]{4,8}$/i.test(raw)) {
+    return { name: '', code: raw.toUpperCase() };
+  }
   const parts = raw.split(/\s+/);
   const last = parts[parts.length - 1];
-  if (/^[A-Z0-9]{4,8}$/.test(last)) {
-    return { name: parts.slice(0, -1).join(' ').trim(), code: last };
+  if (/^[A-Z0-9]{4,8}$/i.test(last)) {
+    return { name: parts.slice(0, -1).join(' ').trim(), code: last.toUpperCase() };
   }
   return { name: raw, code: '' };
 }
@@ -543,16 +578,20 @@ function handleWsMessage(data) {
     multiplayer.roomId = data.room.id;
     multiplayer.roomMode = data.room.mode;
     multiplayer.roomSettings = data.room.settings;
+    multiplayer.seed = data.room.seed;
     multiplayer.isHost = data.room.hostId === wsClientId;
     multiplayer.started = data.room.started;
+    if (!wasInRoom || prevRoomId !== data.room.id) {
+      multiplayer.problemIndex = 0;
+    }
   if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
       ? (multiplayer.isHost ? 'room created' : 'joined room')
       : 'room';
     const displayName = data.room.displayName ? ` ${data.room.displayName}` : '';
-    setRoomStatus(`${statusPrefix}:${displayName} ${data.room.id}`);
+    setRoomStatus(`${statusPrefix}:${displayName}`);
     if (mpRoomInput) mpRoomInput.value = `${data.room.displayName || 'room'} ${data.room.id}`;
-    setMultiplayerStatus(`${data.room.players} players`);
+    setMultiplayerStatus(`code: ${data.room.id} · ${data.room.players} players`);
     renderMultiplayerPlayers(data.room.playersList || []);
     updateStartButtonLabel();
     return;
@@ -628,7 +667,7 @@ function handleMultiplayerCreate() {
   const payload = {
     type: 'room:create',
     name,
-    displayName: roomName || name,
+    displayName: roomName || 'room',
     password,
     mode: modeInput.value,
     settings: {
@@ -751,17 +790,17 @@ function handleLogout() {
   setAuth(null);
 }
 
-function shuffle(arr) {
+function shuffle(arr, rng = Math.random) {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = randInt(0, i);
+    const j = randInt(0, i, rng);
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
 }
 
-function weightedStep() {
-  const r = Math.random();
+function weightedStep(rng = Math.random) {
+  const r = rng();
   if (r < 0.125) return -2;
   if (r < 0.375) return -1;
   if (r < 0.625) return 0;
@@ -784,21 +823,22 @@ function addCol(matrix, target, source, factor) {
 }
 
 function generateProblem() {
+  const rng = getProblemRng();
   const { range, sizeMin, sizeMax } = settings;
   const min = Math.min(sizeMin, sizeMax);
   const max = Math.max(sizeMin, sizeMax);
-  const size = randInt(min, max);
+  const size = randInt(min, max, rng);
   const bound = 25;
   let matrix = [];
   let eigenvalues = [];
 
   for (let attempt = 0; attempt < 200; attempt += 1) {
-    eigenvalues = Array.from({ length: size }, () => randInt(-range, range));
+    eigenvalues = Array.from({ length: size }, () => randInt(-range, range, rng));
     if (eigenvalues.every((v) => v === 0)) {
       eigenvalues[0] = 1;
     }
 
-    const ordered = shuffle(eigenvalues);
+    const ordered = shuffle(eigenvalues, rng);
     matrix = Array.from({ length: size }, (_, r) =>
       Array.from({ length: size }, (_, c) => (r === c ? ordered[r] : 0))
     );
@@ -807,7 +847,7 @@ function generateProblem() {
       for (let i = 0; i < size; i += 1) {
         for (let j = 0; j < size; j += 1) {
           if (i === j) continue;
-          const step = weightedStep();
+          const step = weightedStep(rng);
           if (step === 0) continue;
           addRow(matrix, i, j, step);
           addCol(matrix, j, i, -step);
@@ -953,6 +993,7 @@ function handleInput(index) {
 
 function nextProblem() {
   const { matrix, eigenvalues } = generateProblem();
+  multiplayer.problemIndex += 1;
   currentEigenvalues = eigenvalues;
   currentMatrixSize = matrix.length;
   problemStartTime = Date.now();
@@ -1449,6 +1490,9 @@ function startGame(options = {}) {
 
   score = 0;
   dimensionScores = {};
+  if (multiplayer.enabled) {
+    multiplayer.problemIndex = 0;
+  }
   timeLeft = timeLeftOverride ?? (settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit);
   scoreEl.textContent = score;
   timeEl.textContent = timeLeft;

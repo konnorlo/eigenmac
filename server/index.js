@@ -400,6 +400,7 @@ const sendRoomState = (room) => {
       players: room.players.size,
       maxPlayers: room.maxPlayers,
       displayName: room.displayName,
+      seed: room.seed,
       playersList
     }
   };
@@ -523,6 +524,7 @@ wss.on('connection', (ws) => {
         isPublic: !password,
         password,
         displayName: ensureName(msg.displayName || msg.name),
+        seed: crypto.randomUUID(),
         players: new Map(),
         bots: [],
         maxPlayers: MAX_PLAYERS,
@@ -588,8 +590,13 @@ wss.on('connection', (ws) => {
             const nextHost = room.players.keys().next().value;
             room.hostId = nextHost || null;
           }
-          syncBots(room);
-          sendRoomState(room);
+          if (room.players.size === 0) {
+            if (room.interval) clearInterval(room.interval);
+            rooms.delete(room.id);
+          } else {
+            syncBots(room);
+            sendRoomState(room);
+          }
         }
         client.roomId = null;
       }
@@ -627,8 +634,13 @@ wss.on('connection', (ws) => {
           const nextHost = room.players.keys().next().value;
           room.hostId = nextHost || null;
         }
-        syncBots(room);
-        sendRoomState(room);
+        if (room.players.size === 0) {
+          if (room.interval) clearInterval(room.interval);
+          rooms.delete(room.id);
+        } else {
+          syncBots(room);
+          sendRoomState(room);
+        }
       }
     }
     clients.delete(clientId);
