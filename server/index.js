@@ -126,7 +126,12 @@ app.post('/solve', async (req, res) => {
     }
   });
 
-  res.json(updated);
+  const bestOverall = await prisma.userStat.aggregate({
+    where: { userId: user.id },
+    _max: { bestScore: true }
+  });
+
+  res.json({ ...updated, bestScore: bestOverall._max.bestScore ?? newBest });
 });
 
 app.listen(PORT, () => {
