@@ -279,18 +279,29 @@ button {
 }
 
 .battle-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 18px;
-  align-items: start;
+  position: relative;
+  width: 100%;
+  min-height: 1px;
+}
+
+.battle-layout.single {
+  min-height: 1px;
+}
+
+.battle-layout .card {
+  margin: 0 auto;
 }
 
 .leaderboard {
+  position: absolute;
+  left: -260px;
+  top: 0;
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 12px;
   background: #ffffff;
   height: fit-content;
+  width: 220px;
 }
 
 .leaderboard-title {
@@ -332,11 +343,10 @@ button {
 }
 
 @media (max-width: 800px) {
-  .battle-layout {
-    grid-template-columns: 1fr;
-  }
   .leaderboard {
-    order: 2;
+    position: static;
+    width: 100%;
+    margin-bottom: 12px;
   }
 }
 

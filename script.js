@@ -22,8 +22,11 @@ const DEFAULT_SYMMETRIC = false;
 const DEFAULT_MODE = 'classic';
 const DEFAULT_DIFFICULTY = 'medium';
 
+// Optional API (leave empty to disable)
+const API_BASE_URL = '';
 
-const BATTLE_DURATION = 140;
+
+const BATTLE_DURATION = 110;
 const BATTLE_COMPETITORS = 99;
 const BATTLE_MEAN_MULT = 0.9;
 const BOT_MEAN_RATE = 0.1;
@@ -66,6 +69,7 @@ const battleStatusEl = document.getElementById('battle-status');
 const deployScreen = document.getElementById('screen-deploy');
 const leaderboardEl = document.getElementById('leaderboard');
 const leaderboardListEl = document.getElementById('leaderboard-list');
+const battleLayoutEl = document.getElementById('battle-layout');
 const pad = document.getElementById('pad');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
@@ -111,7 +115,28 @@ const BOT_NAMES = [
   'Gideon Park',
   'Lyra Stone',
   'Owen Vale',
-  'Hazel Quinn'
+  'Hazel Quinn',
+  'Justin Wang',
+  'Aarush Chugh',
+  'Aarush Chugh',
+  'Aarush Chugh',
+  'Aarush Chugh',
+  'Aarush Chugh',
+  'Aman Thawani',
+  'Ethan Wang',
+  'Ethan Bilderbeek',
+  'Kanye West',
+  'Ishanth Srinivas',
+  'Jordan Hu',
+  'Panav Pallothu',
+  'Alexandros Lekkas',
+  'Rohan Rao',
+  'Neal Pannala',
+  'Kevin Li',
+  'Brian Jiang',
+  'Brian Jiang',
+  'Brian Jiang',
+  'Brian Jiang'
 ];
 
 const PLAYER_NAME = 'you';
@@ -126,6 +151,7 @@ let currentEigenvalues = [];
 let currentInputs = [];
 let matched = [];
 let currentMatrixSize = DEFAULT_SIZE_MIN;
+let playerLastScoreTime = 0;
 let settings = {
   timeLimit: DEFAULT_TIME_LIMIT,
   range: DEFAULT_RANGE,
@@ -261,7 +287,17 @@ function generateProblem() {
     }
 
     const within = matrix.every((row) => row.every((val) => val <= bound && val >= -bound));
-    if (within) break;
+    const diagonalOnly = matrix.every((row, r) =>
+      row.every((val, c) => (r === c ? true : val === 0))
+    );
+    const upperTriangular = matrix.every((row, r) =>
+      row.every((val, c) => (r > c ? val === 0 : true))
+    );
+    const lowerTriangular = matrix.every((row, r) =>
+      row.every((val, c) => (r < c ? val === 0 : true))
+    );
+    const trivialEigen = diagonalOnly || upperTriangular || lowerTriangular;
+    if (within && !trivialEigen) break;
   }
 
   return { matrix, eigenvalues };
@@ -289,7 +325,8 @@ function buildInputs(count) {
   for (let i = 0; i < count; i += 1) {
     const input = document.createElement('input');
     input.type = 'text';
-    input.inputMode = 'numeric';
+    input.inputMode = 'text';
+    input.pattern = '-?[0-9]*';
     input.placeholder = `λ${i + 1}`;
     input.addEventListener('input', () => handleInput(i));
     currentInputs.push(input);
@@ -357,6 +394,9 @@ function handleInput(index) {
   if (matched.every(Boolean)) {
     score += 1;
     scoreEl.textContent = score;
+    if (battle.active) {
+      playerLastScoreTime = battle.t;
+    }
     feedbackEl.textContent = 'Correct!';
     feedbackEl.className = 'feedback success';
     nextProblem();
@@ -374,6 +414,11 @@ function nextProblem() {
   setMatrixGrid(matrix.length);
   renderMatrix(matrix);
   buildInputs(eigenvalues.length);
+  if (battle.active) {
+    battle.competitors.forEach((c) => {
+      c.baseRate = Math.max(0.02, randNormal(battle.mean, battle.std));
+    });
+  }
   if (padCtx && pad) {
     padCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     padLabelDrawn = false;
@@ -586,8 +631,10 @@ function startBattle() {
     name: names[i % names.length],
     baseRate: Math.max(0.02, randNormal(battle.mean, battle.std)),
     score: 0,
-    alive: true
+    alive: true,
+    lastScoreTime: 0
   }));
+  playerLastScoreTime = 0;
   updateBattleStatus();
 }
 
@@ -598,6 +645,7 @@ function paceCompetitors() {
     const expected = Math.floor(c.baseRate * sizeFactor * battle.t);
     if (c.score < expected) {
       c.score = expected;
+      c.lastScoreTime = battle.t;
     }
   });
 }
@@ -618,12 +666,14 @@ function updateBattleStatus() {
   if (!battle.active) {
     battleStatusEl.textContent = '';
     if (leaderboardEl) leaderboardEl.classList.add('hidden');
+    if (battleLayoutEl) battleLayoutEl.classList.add('single');
     return;
   }
   if (leaderboardEl) leaderboardEl.classList.remove('hidden');
+  if (battleLayoutEl) battleLayoutEl.classList.remove('single');
   const alive = battle.competitors.filter((c) => c.alive);
-  const playerEntry = { name: PLAYER_NAME, score, alive: true };
-  const placement = 1 + alive.filter((c) => c.score > score).length;
+  const playerEntry = { name: PLAYER_NAME, score, alive: true, lastScoreTime: playerLastScoreTime };
+  const placement = 1 + alive.filter((c) => c.score > score || (c.score === score && c.lastScoreTime < playerLastScoreTime)).length;
   const remaining = alive.length + 1;
   const nextCutTime = CUT_TIMES[battle.cutIndex] ?? BATTLE_DURATION;
   const nextCutIn = Math.max(0, nextCutTime - battle.t);
@@ -632,11 +682,55 @@ function updateBattleStatus() {
   renderLeaderboard(playerEntry);
 }
 
+async function ensureAuth() {
+  if (!API_BASE_URL) return null;
+  const stored = localStorage.getItem('eigenmac_auth');
+  if (stored) return JSON.parse(stored);
+
+  const username = prompt('Choose a username (letters/numbers/_)') || '';
+  const password = prompt('Choose a password (min 8 chars)') || '';
+  if (!username || password.length < 8) return null;
+
+  const auth = { username, password };
+  localStorage.setItem('eigenmac_auth', JSON.stringify(auth));
+  return auth;
+}
+
+async function submitScore(scoreValue) {
+  if (!API_BASE_URL) return;
+  const auth = await ensureAuth();
+  if (!auth) return;
+  const payload = { ...auth, score: scoreValue };
+  let res = await fetch(`${API_BASE_URL}/score`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.status === 401 || res.status === 404) {
+    const shouldCreate = confirm('Account not found. Create it?');
+    if (!shouldCreate) return;
+    const signupRes = await fetch(`${API_BASE_URL}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth)
+    });
+    if (!signupRes.ok) return;
+    await fetch(`${API_BASE_URL}/score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  }
+}
+
 
 function renderLeaderboard(playerEntry) {
   if (!leaderboardListEl) return;
   const top = [...battle.competitors.filter((c) => c.alive), playerEntry]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.lastScoreTime - b.lastScoreTime;
+    })
     .slice(0, 20);
   leaderboardListEl.innerHTML = '';
   top.forEach((c, idx) => {
@@ -658,7 +752,7 @@ function tickBattle() {
     const aliveCount = battle.competitors.filter((c) => c.alive).length;
     const remaining = aliveCount + 1;
     const safeCount = Math.max(1, Math.ceil(remaining * ((nextCutRank ?? 80) / 100)));
-    const placement = 1 + battle.competitors.filter((c) => c.alive && c.score > score).length;
+    const placement = 1 + battle.competitors.filter((c) => c.alive && (c.score > score || (c.score === score && c.lastScoreTime < playerLastScoreTime))).length;
     battle.placement = placement;
     if (placement > safeCount) {
       battle.eliminated = true;
@@ -875,6 +969,9 @@ function startGame() {
   if (leaderboardEl) {
     leaderboardEl.classList.toggle('hidden', settings.mode !== 'battle');
   }
+  if (battleLayoutEl) {
+    battleLayoutEl.classList.toggle('single', settings.mode !== 'battle');
+  }
   timer = setInterval(() => {
     timeLeft -= 1;
     timeEl.textContent = timeLeft;
@@ -944,6 +1041,7 @@ function endGame() {
   hideStaticDvd();
   clearDvdBoxes();
   battle.active = false;
+  submitScore(score);
 }
 
 function showStartScreen() {
