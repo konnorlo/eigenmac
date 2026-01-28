@@ -521,8 +521,9 @@ button {
 }
 
 .preset-grid {
-  display: grid;
+  display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .preset {

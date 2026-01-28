@@ -260,6 +260,8 @@ let selectedPresetSingle = 'p2';
 let selectedPresetMulti = 'p2';
 let activeStartTab = 'single';
 let activeMpTab = 'create';
+// 0 = create, 1 = join, 2 = public
+let mpTypeToggle = 2;
 
 let padCtx = null;
 let padDrawing = false;
@@ -548,6 +550,7 @@ function setStartTab(tab) {
 }
 
 function setMpTab(tab) {
+  mpTypeToggle = tab === 'create' ? 0 : tab === 'join' ? 1 : 2;
   activeMpTab = tab;
   if (mpTabCreate) mpTabCreate.classList.toggle('active', tab === 'create');
   if (mpTabJoin) mpTabJoin.classList.toggle('active', tab === 'join');
@@ -1830,7 +1833,7 @@ window.addEventListener('load', () => {
   if (mpDifficultyInput) mpDifficultyInput.value = DEFAULT_DIFFICULTY;
   if (mpDifficultyWrap) mpDifficultyWrap.classList.add('hidden');
   setStartTab(typeToggle === 0 ? 'multi' : 'single');
-  setMpTab('create');
+  setMpTab(mpTypeToggle === 1 ? 'join' : mpTypeToggle === 2 ? 'public' : 'create');
   selectPreset(selectedPresetSingle, 'single');
   selectPreset(selectedPresetMulti, 'multi');
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
