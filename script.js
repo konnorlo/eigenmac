@@ -855,18 +855,22 @@ async function handleSignup() {
     if (authStatusEl) authStatusEl.textContent = 'invalid username/password';
     return;
   }
+  console.log('[auth] signup attempt', username);
   const res = await fetch(`${API_BASE_URL}/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   });
   if (!res.ok) {
+    console.log('[auth] signup failed', res.status);
     if (authStatusEl) authStatusEl.textContent = 'signup failed';
     return;
   }
+  console.log('[auth] signup ok', username);
   setAuth({ username, password });
   bestScore = 0;
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+  if (authStatusEl) authStatusEl.textContent = `account created: ${username}`;
 }
 
 async function handleLogin() {
@@ -877,21 +881,29 @@ async function handleLogin() {
     if (authStatusEl) authStatusEl.textContent = 'invalid username/password';
     return;
   }
+  console.log('[auth] login attempt', username);
   const res = await fetch(`${API_BASE_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   });
   if (!res.ok) {
+    console.log('[auth] login failed', res.status);
     if (authStatusEl) authStatusEl.textContent = 'login failed';
     return;
   }
   const data = await res.json();
+  console.log('[auth] login ok', data.username);
   setAuth({ username, password });
   if (typeof data.bestScore === 'number') {
     bestScore = data.bestScore;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   }
+  if (typeof data.power === 'number') {
+    powerScore = data.power;
+    if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
+  }
+  if (authStatusEl) authStatusEl.textContent = `logged in: ${username}`;
 }
 
 function handleLogout() {
