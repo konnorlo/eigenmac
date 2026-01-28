@@ -1192,17 +1192,33 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
+const setPowerModalOpen = async (isOpen) => {
+  if (!powerModalEl) return;
+  if (isOpen) {
+    powerModalEl.classList.remove('hidden');
+    powerModalEl.style.display = 'grid';
+    await fetchPowerLeaderboard();
+  } else {
+    powerModalEl.classList.add('hidden');
+    powerModalEl.style.display = 'none';
+  }
+};
 if (powerToggleBtn && powerModalEl) {
   powerToggleBtn.addEventListener('click', async () => {
-    powerModalEl.classList.toggle('hidden');
-    if (!powerModalEl.classList.contains('hidden')) {
-      await fetchPowerLeaderboard();
-    }
+    const isOpen = powerModalEl.classList.contains('hidden');
+    await setPowerModalOpen(isOpen);
   });
 }
 if (powerCloseBtn && powerModalEl) {
   powerCloseBtn.addEventListener('click', () => {
-    powerModalEl.classList.add('hidden');
+    setPowerModalOpen(false);
+  });
+}
+if (powerModalEl) {
+  powerModalEl.addEventListener('click', (event) => {
+    if (event.target === powerModalEl) {
+      setPowerModalOpen(false);
+    }
   });
 }
 if (authSignupBtn) authSignupBtn.addEventListener('click', handleSignup);

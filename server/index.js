@@ -82,7 +82,8 @@ app.post('/login', async (req, res) => {
   const stats = await prisma.userStat.findMany({ where: { userId: user.id } });
   const power = stats.reduce((acc, s) => {
     if (s.bestAvg5 > 0) {
-      return Math.max(acc, s.bestAvg5 * factorial(s.dimension));
+      const score = factorial(s.dimension) / s.bestAvg5 - 0.005;
+      return Math.max(acc, score);
     }
     return acc;
   }, 0);
@@ -136,7 +137,8 @@ app.post('/solve', async (req, res) => {
   lastFive.push(solveSeconds);
   while (lastFive.length > 5) lastFive.shift();
   const avg5 = lastFive.length === 5 ? lastFive.reduce((a, b) => a + b, 0) / 5 : 0;
-  const newBestAvg5 = Math.max(existing.bestAvg5, avg5);
+  const hasBest = existing.bestAvg5 > 0;
+  const newBestAvg5 = avg5 > 0 ? (hasBest ? Math.min(existing.bestAvg5, avg5) : avg5) : existing.bestAvg5;
 
   const updated = await prisma.userStat.update({
     where: { userId_dimension: { userId: user.id, dimension } },
@@ -165,7 +167,8 @@ app.post('/solve', async (req, res) => {
     };
     return stats.reduce((acc, s) => {
       if (s.bestAvg5 > 0) {
-        return Math.max(acc, s.bestAvg5 * factorial(s.dimension));
+        const score = factorial(s.dimension) / s.bestAvg5 - 0.005;
+        return Math.max(acc, score);
       }
       return acc;
     }, 0);
@@ -187,7 +190,7 @@ app.get('/power-leaderboard', async (_req, res) => {
     let power = 0;
     u.stats.forEach((s) => {
       if (s.bestAvg5 > 0) {
-        power = Math.max(power, s.bestAvg5 * factorial(s.dimension));
+        power = Math.max(power, factorial(s.dimension) / s.bestAvg5 - 0.005);
       }
     });
     return { username: u.username, power };
