@@ -22,6 +22,9 @@ const DEFAULT_SYMMETRIC = false;
 const DEFAULT_MODE = 'classic';
 const DEFAULT_DIFFICULTY = 'medium';
 
+// Optional API (leave empty to disable)
+const API_BASE_URL = 'https://eigenmac1.onrender.com';
+
 
 const BATTLE_DURATION = 110;
 const BATTLE_COMPETITORS = 99;
@@ -217,6 +220,47 @@ function randNormal(mean, std) {
   while (v === 0) v = Math.random();
   const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
   return mean + z * std;
+}
+
+async function ensureAuth() {
+  if (!API_BASE_URL) return null;
+  const stored = localStorage.getItem('eigenmac_auth');
+  if (stored) return JSON.parse(stored);
+
+  const username = prompt('Choose a username (letters/numbers/_)') || '';
+  const password = prompt('Choose a password (min 8 chars)') || '';
+  if (!username || password.length < 8) return null;
+
+  const auth = { username, password };
+  localStorage.setItem('eigenmac_auth', JSON.stringify(auth));
+  return auth;
+}
+
+async function submitScore(scoreValue) {
+  if (!API_BASE_URL) return;
+  const auth = await ensureAuth();
+  if (!auth) return;
+  const payload = { ...auth, score: scoreValue };
+  let res = await fetch(`${API_BASE_URL}/score`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.status === 401 || res.status === 404) {
+    const shouldCreate = confirm('Account not found. Create it?');
+    if (!shouldCreate) return;
+    const signupRes = await fetch(`${API_BASE_URL}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth)
+    });
+    if (!signupRes.ok) return;
+    await fetch(`${API_BASE_URL}/score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  }
 }
 
 function shuffle(arr) {
@@ -990,6 +1034,7 @@ function endGame() {
   hideStaticDvd();
   clearDvdBoxes();
   battle.active = false;
+  submitScore(score);
 }
 
 function showStartScreen() {
