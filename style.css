@@ -55,7 +55,7 @@ body {
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  width: 220px;
+  width: 140px;
   display: grid;
   gap: 8px;
   transform: scale(0.5);
@@ -75,13 +75,13 @@ body {
   color: var(--text);
   border: 2px solid var(--border);
   border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 0.95rem;
+  padding: 6px 8px;
+  font-size: 0.8rem;
 }
 
 .auth-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .auth-status {
@@ -508,6 +508,15 @@ button {
   position: fixed;
   left: 18px;
   bottom: 18px;
+  font-size: 1rem;
+  color: var(--muted);
+  z-index: 4;
+}
+
+.power-score {
+  position: fixed;
+  left: 18px;
+  bottom: 42px;
   font-size: 1rem;
   color: var(--muted);
   z-index: 4;

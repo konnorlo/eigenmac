@@ -74,10 +74,24 @@ app.post('/login', async (req, res) => {
     _max: { bestScore: true }
   });
 
+  const factorial = (n) => {
+    let out = 1;
+    for (let i = 2; i <= n; i += 1) out *= i;
+    return out;
+  };
+  const stats = await prisma.userStat.findMany({ where: { userId: user.id } });
+  const power = stats.reduce((acc, s) => {
+    if (s.bestAvg5 > 0) {
+      return Math.max(acc, s.bestAvg5 * factorial(s.dimension));
+    }
+    return acc;
+  }, 0);
+
   res.json({
     id: user.id,
     username: user.username,
-    bestScore: bestOverall._max.bestScore ?? 0
+    bestScore: bestOverall._max.bestScore ?? 0,
+    power
   });
 });
 
@@ -141,7 +155,23 @@ app.post('/solve', async (req, res) => {
     _max: { bestScore: true }
   });
 
-  res.json({ ...updated, bestScore: bestOverall._max.bestScore ?? newBest });
+  const power = await prisma.userStat.findMany({
+    where: { userId: user.id }
+  }).then((stats) => {
+    const factorial = (n) => {
+      let out = 1;
+      for (let i = 2; i <= n; i += 1) out *= i;
+      return out;
+    };
+    return stats.reduce((acc, s) => {
+      if (s.bestAvg5 > 0) {
+        return Math.max(acc, s.bestAvg5 * factorial(s.dimension));
+      }
+      return acc;
+    }, 0);
+  });
+
+  res.json({ ...updated, bestScore: bestOverall._max.bestScore ?? newBest, power });
 });
 
 app.get('/power-leaderboard', async (_req, res) => {

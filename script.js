@@ -81,6 +81,7 @@ const deployScreen = document.getElementById('screen-deploy');
 const leaderboardEl = document.getElementById('leaderboard');
 const leaderboardListEl = document.getElementById('leaderboard-list');
 const battleLayoutEl = document.getElementById('battle-layout');
+const powerScoreEl = document.getElementById('power-score');
 const pad = document.getElementById('pad');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
@@ -166,6 +167,7 @@ let playerLastScoreTime = 0;
 let auth = null;
 let problemStartTime = Date.now();
 let dimensionScores = {};
+let powerScore = 0;
 let settings = {
   timeLimit: DEFAULT_TIME_LIMIT,
   range: DEFAULT_RANGE,
@@ -266,22 +268,12 @@ async function refreshAuthStats() {
     bestScore = data.bestScore;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   }
-}
-
-async function submitScore(scoreValue) {
-  if (!API_BASE_URL) return;
-  const activeAuth = await ensureAuth();
-  if (!activeAuth) return;
-  const payload = { ...activeAuth, score: scoreValue };
-  let res = await fetch(`${API_BASE_URL}/score`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (res.status === 401 || res.status === 404) {
-    if (authStatusEl) authStatusEl.textContent = 'login required';
+  if (typeof data.power === 'number') {
+    powerScore = data.power;
+    if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
   }
 }
+
 
 async function submitSolve(dimension, solveSeconds, dimensionScore) {
   if (!API_BASE_URL) return;
@@ -299,13 +291,21 @@ async function submitSolve(dimension, solveSeconds, dimensionScore) {
       bestScore = Math.max(bestScore, data.bestScore);
       if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
     }
+    if (typeof data.power === 'number') {
+      powerScore = data.power;
+      if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
+    }
   }
 }
 
 async function fetchPowerLeaderboard() {
   if (!API_BASE_URL || !powerListEl) return;
+  powerListEl.innerHTML = '<li>loading...</li>';
   const res = await fetch(`${API_BASE_URL}/power-leaderboard`);
-  if (!res.ok) return;
+  if (!res.ok) {
+    powerListEl.innerHTML = '<li>failed to load</li>';
+    return;
+  }
   const data = await res.json();
   powerListEl.innerHTML = '';
   data.items.forEach((row, idx) => {
@@ -1167,7 +1167,6 @@ function endGame() {
   hideStaticDvd();
   clearDvdBoxes();
   battle.active = false;
-  submitScore(score);
 }
 
 function showStartScreen() {
