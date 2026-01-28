@@ -1,11 +1,13 @@
 :root {
-  --bg: #ffffff;
-  --card: #ffffff;
-  --text: #111111;
-  --muted: #6b7280;
+  --bg: #edf7ef;
+  --card: #f7fbf6;
+  --text: #0f1f16;
+  --muted: #5b6b60;
   --danger: #b91c1c;
   --success: #15803d;
-  --border: #e5e7eb;
+  --border: #cfe3d3;
+  --accent: #2f7a4f;
+  --accent-soft: #d9efe0;
 }
 
 * {
@@ -293,7 +295,7 @@ button {
 }
 
 .primary {
-  background: var(--text);
+  background: var(--accent);
   color: #ffffff;
 }
 
@@ -475,6 +477,12 @@ button {
   letter-spacing: 0.08em;
 }
 
+.brand-logo {
+  width: 160px;
+  height: auto;
+  object-fit: contain;
+}
+
 .tab-row {
   display: flex;
   gap: 8px;
@@ -482,7 +490,7 @@ button {
 
 .tab {
   border: 2px solid var(--border);
-  background: #ffffff;
+  background: var(--card);
   color: var(--muted);
   padding: 6px 12px;
   border-radius: 999px;
@@ -494,7 +502,8 @@ button {
 
 .tab.active {
   color: var(--text);
-  border-color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .tab-panel {
@@ -517,7 +526,7 @@ button {
 
 .preset {
   border: 2px solid var(--border);
-  background: #ffffff;
+  background: var(--card);
   color: var(--text);
   padding: 10px 12px;
   border-radius: 12px;
@@ -526,7 +535,8 @@ button {
 }
 
 .preset.active {
-  border-color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .custom-settings {
@@ -558,6 +568,7 @@ button {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .mp-rooms {
@@ -661,6 +672,7 @@ button {
 .mp-tabs {
   display: flex;
   gap: 8px;
+  justify-content: center;
 }
 
 .mp-panel {
