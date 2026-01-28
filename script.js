@@ -58,6 +58,12 @@ const sizeMaxInput = document.getElementById('size-max');
 const modeInput = document.getElementById('mode');
 const difficultyInput = document.getElementById('difficulty');
 const difficultyWrap = document.getElementById('difficulty-wrap');
+const authUsernameInput = document.getElementById('auth-username');
+const authPasswordInput = document.getElementById('auth-password');
+const authSignupBtn = document.getElementById('auth-signup');
+const authLoginBtn = document.getElementById('auth-login');
+const authLogoutBtn = document.getElementById('auth-logout');
+const authStatusEl = document.getElementById('auth-status');
 
 const screenStart = document.getElementById('screen-start');
 const screenGame = document.getElementById('screen-game');
@@ -152,6 +158,9 @@ let currentInputs = [];
 let matched = [];
 let currentMatrixSize = DEFAULT_SIZE_MIN;
 let playerLastScoreTime = 0;
+let auth = null;
+let problemStartTime = Date.now();
+let dimensionScores = {};
 let settings = {
   timeLimit: DEFAULT_TIME_LIMIT,
   range: DEFAULT_RANGE,
@@ -224,43 +233,111 @@ function randNormal(mean, std) {
 
 async function ensureAuth() {
   if (!API_BASE_URL) return null;
+  if (auth) return auth;
   const stored = localStorage.getItem('eigenmac_auth');
-  if (stored) return JSON.parse(stored);
-
-  const username = prompt('Choose a username (letters/numbers/_)') || '';
-  const password = prompt('Choose a password (min 8 chars)') || '';
-  if (!username || password.length < 8) return null;
-
-  const auth = { username, password };
-  localStorage.setItem('eigenmac_auth', JSON.stringify(auth));
-  return auth;
+  if (stored) {
+    auth = JSON.parse(stored);
+    return auth;
+  }
+  return null;
 }
 
 async function submitScore(scoreValue) {
   if (!API_BASE_URL) return;
-  const auth = await ensureAuth();
-  if (!auth) return;
-  const payload = { ...auth, score: scoreValue };
+  const activeAuth = await ensureAuth();
+  if (!activeAuth) return;
+  const payload = { ...activeAuth, score: scoreValue };
   let res = await fetch(`${API_BASE_URL}/score`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
   if (res.status === 401 || res.status === 404) {
-    const shouldCreate = confirm('Account not found. Create it?');
-    if (!shouldCreate) return;
-    const signupRes = await fetch(`${API_BASE_URL}/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(auth)
-    });
-    if (!signupRes.ok) return;
-    await fetch(`${API_BASE_URL}/score`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    if (authStatusEl) authStatusEl.textContent = 'login required';
   }
+}
+
+async function submitSolve(dimension, solveSeconds, dimensionScore) {
+  if (!API_BASE_URL) return;
+  const activeAuth = await ensureAuth();
+  if (!activeAuth) return;
+  const payload = { ...activeAuth, dimension, solveSeconds, score: dimensionScore };
+  const res = await fetch(`${API_BASE_URL}/solve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    const data = await res.json();
+    if (typeof data.bestScore === 'number') {
+      bestScore = Math.max(bestScore, data.bestScore);
+      if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+    }
+  }
+}
+
+function setAuth(nextAuth) {
+  auth = nextAuth;
+  if (auth) {
+    localStorage.setItem('eigenmac_auth', JSON.stringify(auth));
+    if (authStatusEl) authStatusEl.textContent = `logged in as ${auth.username}`;
+    if (authLogoutBtn) authLogoutBtn.classList.remove('hidden');
+  } else {
+    localStorage.removeItem('eigenmac_auth');
+    if (authStatusEl) authStatusEl.textContent = 'not logged in';
+    if (authLogoutBtn) authLogoutBtn.classList.add('hidden');
+  }
+}
+
+async function handleSignup() {
+  if (!API_BASE_URL) return;
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value.trim();
+  if (!username || password.length < 8) {
+    if (authStatusEl) authStatusEl.textContent = 'invalid username/password';
+    return;
+  }
+  const res = await fetch(`${API_BASE_URL}/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  if (!res.ok) {
+    if (authStatusEl) authStatusEl.textContent = 'signup failed';
+    return;
+  }
+  setAuth({ username, password });
+  bestScore = 0;
+  if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+}
+
+async function handleLogin() {
+  if (!API_BASE_URL) return;
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value.trim();
+  if (!username || password.length < 8) {
+    if (authStatusEl) authStatusEl.textContent = 'invalid username/password';
+    return;
+  }
+  const res = await fetch(`${API_BASE_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  });
+  if (!res.ok) {
+    if (authStatusEl) authStatusEl.textContent = 'login failed';
+    return;
+  }
+  const data = await res.json();
+  setAuth({ username, password });
+  if (typeof data.bestScore === 'number') {
+    bestScore = data.bestScore;
+    if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+  }
+}
+
+function handleLogout() {
+  setAuth(null);
 }
 
 function shuffle(arr) {
@@ -431,6 +508,10 @@ function handleInput(index) {
     if (battle.active) {
       playerLastScoreTime = battle.t;
     }
+    const solveSeconds = Math.max(0, Math.round((Date.now() - problemStartTime) / 1000));
+    const dimKey = `${currentMatrixSize}`;
+    dimensionScores[dimKey] = (dimensionScores[dimKey] || 0) + 1;
+    submitSolve(currentMatrixSize, solveSeconds, dimensionScores[dimKey]);
     feedbackEl.textContent = 'Correct!';
     feedbackEl.className = 'feedback success';
     nextProblem();
@@ -445,6 +526,7 @@ function nextProblem() {
   const { matrix, eigenvalues } = generateProblem();
   currentEigenvalues = eigenvalues;
   currentMatrixSize = matrix.length;
+  problemStartTime = Date.now();
   setMatrixGrid(matrix.length);
   renderMatrix(matrix);
   buildInputs(eigenvalues.length);
@@ -927,6 +1009,7 @@ function startGame() {
   };
 
   score = 0;
+  dimensionScores = {};
   timeLeft = settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit;
   scoreEl.textContent = score;
   timeEl.textContent = timeLeft;
@@ -1060,6 +1143,9 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
+if (authSignupBtn) authSignupBtn.addEventListener('click', handleSignup);
+if (authLoginBtn) authLoginBtn.addEventListener('click', handleLogin);
+if (authLogoutBtn) authLogoutBtn.addEventListener('click', handleLogout);
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space') return;
@@ -1079,6 +1165,12 @@ window.addEventListener('load', () => {
   difficultyInput.value = DEFAULT_DIFFICULTY;
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
+  if (API_BASE_URL) {
+    const stored = localStorage.getItem('eigenmac_auth');
+    if (stored) setAuth(JSON.parse(stored));
+  } else {
+    setAuth(null);
+  }
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   resizePad();
   resizeConfetti();
