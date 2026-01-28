@@ -282,6 +282,8 @@ button {
   position: relative;
   width: 100%;
   min-height: 1px;
+  display: flex;
+  justify-content: center;
 }
 
 .battle-layout.single {
