@@ -345,7 +345,6 @@ const getParticipants = (room) => {
 
 const computeLeaderboard = (room) => {
   return getParticipants(room)
-    .filter((p) => p.alive)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return a.lastScoreTime - b.lastScoreTime;
@@ -416,8 +415,9 @@ const sendRoomTick = (room) => {
     const placement = computePlacement(room, player);
     const nextCutTime = Math.min(CUT_TIMES[room.cutIndex] ?? BATTLE_DURATION, BATTLE_DURATION);
     const nextCutIn = Math.max(0, nextCutTime - room.t);
+    const remaining = getParticipants(room).filter((p) => p.alive).length;
     const status = room.mode === 'battle'
-      ? `placement: ${placement}/${getParticipants(room).filter((p) => p.alive).length} · next cut in ${nextCutIn}s`
+      ? `placement: ${placement}/${remaining} · next cut in ${nextCutIn}s`
       : `placement: ${placement}/${getParticipants(room).length}`;
     send(client.ws, {
       type: 'room:tick',
@@ -425,7 +425,10 @@ const sendRoomTick = (room) => {
       leaderboard,
       placement,
       status,
-      settings: room.settings
+      settings: room.settings,
+      roomMode: room.mode,
+      winnerId: room.winnerId || null,
+      eliminated: !player.alive
     });
   });
 };
@@ -455,12 +458,19 @@ const startRoom = (room) => {
     }
     sendRoomTick(room);
     const aliveCount = getParticipants(room).filter((p) => p.alive).length;
+    if (room.mode === 'battle' && aliveCount <= 1 && !room.winnerId) {
+      const winner = getParticipants(room).find((p) => p.alive);
+      room.winnerId = winner ? winner.id : null;
+    }
     if (room.timeLeft <= 0 || (room.mode === 'battle' && aliveCount <= 1)) {
       room.started = false;
       room.ended = true;
       clearInterval(room.interval);
       room.interval = null;
-      broadcast(room, { type: 'room:end', status: 'match ended' });
+      const winnerName = room.winnerId
+        ? getParticipants(room).find((p) => p.id === room.winnerId)?.name
+        : null;
+      broadcast(room, { type: 'room:end', status: winnerName ? `${winnerName} won` : 'match ended', winnerId: room.winnerId });
     }
   }, 1000);
 };
@@ -535,7 +545,8 @@ wss.on('connection', (ws) => {
         t: 0,
         cutIndex: 0,
         timeLeft: 0,
-        interval: null
+        interval: null,
+        winnerId: null
       };
       room.players.set(clientId, {
         id: clientId,
@@ -609,6 +620,7 @@ wss.on('connection', (ws) => {
     if (msg.type === 'room:start') {
       const room = rooms.get(client.roomId);
       if (!room || room.hostId !== clientId) return;
+      room.winnerId = null;
       startRoom(room);
       return;
     }

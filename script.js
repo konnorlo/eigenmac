@@ -293,6 +293,9 @@ let multiplayer = {
   roomSettings: null,
   leaderboard: [],
   placement: 0,
+  eliminated: false,
+  winnerId: null,
+  playerName: null,
   timeLeft: 0,
   nextCutIn: 0,
   lastRoomId: null,
@@ -609,11 +612,24 @@ function renderPublicRooms(rooms) {
 
 function renderMultiplayerLeaderboard(items) {
   if (!leaderboardListEl) return;
+  const full = items || [];
+  let list = full;
+  const playerName = multiplayer.playerName;
+  if (playerName) {
+    const idx = full.findIndex((c) => c.name === playerName);
+    if (idx !== -1) {
+      const start = Math.max(0, idx - 3);
+      const end = Math.min(full.length, idx + 4);
+      list = full.slice(start, end);
+    }
+  }
   leaderboardListEl.innerHTML = '';
-  items.slice(0, 20).forEach((c, idx) => {
+  list.forEach((c) => {
+    const rank = full.indexOf(c) + 1;
     const li = document.createElement('li');
     li.className = 'leaderboard-item';
-    li.innerHTML = `<span class="leaderboard-rank">${idx + 1}</span><span class="leaderboard-name">${c.name}</span><span class="leaderboard-score">${c.score}</span>`;
+    const name = c.name === playerName ? `${c.name} (you)` : c.name;
+    li.innerHTML = `<span class="leaderboard-rank">${rank}</span><span class="leaderboard-name">${name}</span><span class="leaderboard-score">${c.score}</span>`;
     leaderboardListEl.appendChild(li);
   });
 }
@@ -656,6 +672,9 @@ function resetMultiplayerState() {
   multiplayer.roomSettings = null;
   multiplayer.leaderboard = [];
   multiplayer.placement = 0;
+  multiplayer.eliminated = false;
+  multiplayer.winnerId = null;
+  multiplayer.playerName = null;
   multiplayer.timeLeft = 0;
   multiplayer.nextCutIn = 0;
   multiplayer.lastRoomId = null;
@@ -712,6 +731,8 @@ function handleWsMessage(data) {
     multiplayer.started = true;
     multiplayer.timeLeft = data.timeLeft;
     multiplayer.placement = data.placement || 0;
+    multiplayer.eliminated = data.eliminated || false;
+    multiplayer.winnerId = data.winnerId || null;
     updateStartButtonLabel();
     if (!gameActive) {
       settings = { ...data.settings };
@@ -722,13 +743,21 @@ function handleWsMessage(data) {
     multiplayer.leaderboard = data.leaderboard || [];
     renderMultiplayerLeaderboard(multiplayer.leaderboard);
     if (battleStatusEl) battleStatusEl.textContent = data.status || '';
-    if (data.timeLeft <= 0) {
+    if (data.roomMode === 'battle' && data.winnerId) {
+      if (data.winnerId === wsClientId) {
+        resultOverlay.src = 'royale-winner.png';
+        resultOverlay.alt = 'battle royale winner';
+        resultOverlay.style.display = 'block';
+      }
+    }
+    if (data.timeLeft <= 0 || (data.roomMode === 'battle' && data.winnerId)) {
       endGame();
     }
     return;
   }
   if (data.type === 'room:end') {
     if (data.status) setMultiplayerStatus(data.status);
+    multiplayer.winnerId = data.winnerId || multiplayer.winnerId;
     return;
   }
   if (data.type === 'room:error') {
@@ -774,6 +803,7 @@ function handleMultiplayerCreate() {
     name: getMultiplayerName()
   });
   const name = getMultiplayerName();
+  multiplayer.playerName = name;
   const roomName = mpRoomNameInput?.value.trim() || 'room';
   const password = mpPasswordInput?.value.trim() || '';
   const baseSettings = getMultiSettings();
@@ -802,6 +832,7 @@ function handleMultiplayerJoin() {
     return;
   }
   const name = getMultiplayerName();
+  multiplayer.playerName = name;
   const password = mpJoinPasswordInput?.value.trim() || '';
   sendWsWhenReady({ type: 'room:join', roomId, name, password });
 }
@@ -1716,6 +1747,17 @@ function endGame() {
     finalScoreEl.textContent = `score: ${score} · rank: ${battle.placement}/${BATTLE_COMPETITORS + 1}`;
   } else {
     finalScoreEl.textContent = `score: ${score}`;
+  }
+  if (multiplayer.enabled && multiplayer.winnerId) {
+    if (multiplayer.winnerId === wsClientId) {
+      resultOverlay.src = 'royale-winner.png';
+      resultOverlay.alt = 'battle royale winner';
+      resultOverlay.style.display = 'block';
+    } else {
+      resultOverlay.src = 'lower-than-best.png';
+      resultOverlay.alt = 'eliminated';
+      resultOverlay.style.display = 'block';
+    }
   }
   screenStart.classList.add('hidden');
   screenGame.classList.add('hidden');
