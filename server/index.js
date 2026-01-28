@@ -385,6 +385,10 @@ const updateBots = (room) => {
 };
 
 const sendRoomState = (room) => {
+  const playersList = Array.from(room.players.values()).map((p) => ({
+    name: p.name,
+    isHost: p.id === room.hostId
+  }));
   const payload = {
     type: 'room:state',
     room: {
@@ -395,7 +399,8 @@ const sendRoomState = (room) => {
       hostId: room.hostId,
       players: room.players.size,
       maxPlayers: room.maxPlayers,
-      playerNames: Array.from(room.players.values()).map((p) => p.name)
+      displayName: room.displayName,
+      playersList
     }
   };
   broadcast(room, payload);
@@ -517,6 +522,7 @@ wss.on('connection', (ws) => {
         hostId: clientId,
         isPublic: !password,
         password,
+        displayName: ensureName(msg.displayName || msg.name),
         players: new Map(),
         bots: [],
         maxPlayers: MAX_PLAYERS,

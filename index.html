@@ -112,12 +112,8 @@
           </label>
           <div class="mp-controls hidden" id="mp-controls">
             <label>
-              display name
-              <input id="mp-name" type="text" placeholder="name" />
-            </label>
-            <label>
-              room code (optional)
-              <input id="mp-room" type="text" placeholder="ABCDE" />
+              room name + code
+              <input id="mp-room" type="text" placeholder="team alpha ABCDEF" />
             </label>
             <label>
               room password (optional)
@@ -129,7 +125,13 @@
               <button id="mp-list" class="ghost">public rooms</button>
             </div>
             <div class="mp-rooms" id="mp-rooms"></div>
+            <div class="mp-room-status" id="mp-room-status"></div>
+            <div class="mp-players-title" id="mp-players-title">Players:</div>
             <div class="mp-players" id="mp-players"></div>
+            <div class="mp-actions">
+              <button id="mp-leave" class="ghost hidden">leave room</button>
+              <button id="mp-start" class="primary hidden" disabled>start game</button>
+            </div>
           </div>
         </div>
         <div class="settings-hint">eigenvalues are always integers.</div>
@@ -148,7 +150,6 @@
         <div class="card">
         <div class="matrix-title">find eigenvalues</div>
         <div class="mp-status" id="mp-status"></div>
-        <button id="mp-leave" class="ghost hidden">leave room</button>
         <div class="matrix" id="matrix"></div>
         <div class="answer" id="answer"></div>
         <div class="feedback" id="feedback"></div>

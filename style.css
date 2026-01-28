@@ -486,6 +486,18 @@ button {
   color: var(--muted);
 }
 
+.mp-room-status {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: 4px;
+}
+
+.mp-players-title {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
 .mp-players {
   display: grid;
   gap: 6px;
@@ -498,6 +510,11 @@ button {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fff;
+}
+
+#mp-start[disabled] {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 .mp-room {

@@ -64,13 +64,14 @@ const difficultyInput = document.getElementById('difficulty');
 const difficultyWrap = document.getElementById('difficulty-wrap');
 const multiplayerInput = document.getElementById('multiplayer');
 const mpControlsEl = document.getElementById('mp-controls');
-const mpNameInput = document.getElementById('mp-name');
 const mpRoomInput = document.getElementById('mp-room');
 const mpPasswordInput = document.getElementById('mp-password');
 const mpCreateBtn = document.getElementById('mp-create');
 const mpJoinBtn = document.getElementById('mp-join');
 const mpListBtn = document.getElementById('mp-list');
 const mpRoomsEl = document.getElementById('mp-rooms');
+const mpRoomStatusEl = document.getElementById('mp-room-status');
+const mpPlayersTitleEl = document.getElementById('mp-players-title');
 const mpPlayersEl = document.getElementById('mp-players');
 const authUsernameInput = document.getElementById('auth-username');
 const authPasswordInput = document.getElementById('auth-password');
@@ -97,6 +98,7 @@ const battleLayoutEl = document.getElementById('battle-layout');
 const powerScoreEl = document.getElementById('power-score');
 const mpStatusEl = document.getElementById('mp-status');
 const mpLeaveBtn = document.getElementById('mp-leave');
+const mpStartBtn = document.getElementById('mp-start');
 const pad = document.getElementById('pad');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
@@ -364,7 +366,8 @@ function setAuth(nextAuth) {
 
 function getMultiplayerName() {
   if (auth?.username) return auth.username;
-  const typed = mpNameInput?.value.trim();
+  const { name } = parseRoomInput();
+  const typed = name.trim();
   if (typed) {
     localStorage.setItem('eigenmac_mp_name', typed);
     return typed;
@@ -381,6 +384,21 @@ function setMultiplayerStatus(text) {
   console.log('[mp] status', text);
 }
 
+function setRoomStatus(text) {
+  if (mpRoomStatusEl) mpRoomStatusEl.textContent = text || '';
+}
+
+function parseRoomInput() {
+  const raw = mpRoomInput?.value.trim() || '';
+  if (!raw) return { name: '', code: '' };
+  const parts = raw.split(/\s+/);
+  const last = parts[parts.length - 1];
+  if (/^[A-Z0-9]{4,8}$/.test(last)) {
+    return { name: parts.slice(0, -1).join(' ').trim(), code: last };
+  }
+  return { name: raw, code: '' };
+}
+
 function updateStartButtonLabel() {
   if (!startBtn) return;
   console.log('[mp] updateStartButtonLabel', {
@@ -391,21 +409,32 @@ function updateStartButtonLabel() {
   });
   if (!multiplayer.enabled) {
     startBtn.textContent = 'start';
+    if (mpStartBtn) mpStartBtn.classList.add('hidden');
     return;
   }
   if (!multiplayer.inRoom) {
     startBtn.textContent = 'create room';
+    if (mpStartBtn) mpStartBtn.classList.add('hidden');
     return;
   }
   if (multiplayer.isHost && !multiplayer.started) {
     startBtn.textContent = 'start match';
+    if (mpStartBtn) {
+      mpStartBtn.classList.remove('hidden');
+      mpStartBtn.disabled = false;
+    }
     return;
   }
   if (multiplayer.started) {
     startBtn.textContent = 'in match';
+    if (mpStartBtn) mpStartBtn.classList.add('hidden');
     return;
   }
   startBtn.textContent = 'waiting...';
+  if (mpStartBtn) {
+    mpStartBtn.classList.remove('hidden');
+    mpStartBtn.disabled = true;
+  }
 }
 
 function renderPublicRooms(rooms) {
@@ -449,10 +478,10 @@ function renderMultiplayerPlayers(players) {
     mpPlayersEl.textContent = 'no players yet';
     return;
   }
-  players.forEach((name) => {
+  players.forEach((player) => {
     const row = document.createElement('div');
     row.className = 'mp-player';
-    row.textContent = name;
+    row.textContent = player.isHost ? `${player.name} (host)` : player.name;
     mpPlayersEl.appendChild(row);
   });
 }
@@ -484,7 +513,10 @@ function resetMultiplayerState() {
   multiplayer.nextCutIn = 0;
   multiplayer.lastRoomId = null;
   setMultiplayerStatus('');
+  setRoomStatus('');
   if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
+  if (mpStartBtn) mpStartBtn.classList.add('hidden');
+  if (mpPlayersTitleEl) mpPlayersTitleEl.textContent = 'Players:';
   if (mpPlayersEl) mpPlayersEl.innerHTML = '';
   if (leaderboardEl && !battle.active) leaderboardEl.classList.add('hidden');
   if (battleLayoutEl && !battle.active) battleLayoutEl.classList.add('single');
@@ -513,12 +545,15 @@ function handleWsMessage(data) {
     multiplayer.roomSettings = data.room.settings;
     multiplayer.isHost = data.room.hostId === wsClientId;
     multiplayer.started = data.room.started;
-    if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
+  if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
       ? (multiplayer.isHost ? 'room created' : 'joined room')
       : 'room';
-    setMultiplayerStatus(`${statusPrefix} ${data.room.id} · ${data.room.players} players`);
-    renderMultiplayerPlayers(data.room.playerNames || []);
+    const displayName = data.room.displayName ? ` ${data.room.displayName}` : '';
+    setRoomStatus(`${statusPrefix}:${displayName} ${data.room.id}`);
+    if (mpRoomInput) mpRoomInput.value = `${data.room.displayName || 'room'} ${data.room.id}`;
+    setMultiplayerStatus(`${data.room.players} players`);
+    renderMultiplayerPlayers(data.room.playersList || []);
     updateStartButtonLabel();
     return;
   }
@@ -585,13 +620,15 @@ function handleMultiplayerCreate() {
   console.log('[mp] create click', {
     mode: modeInput.value,
     room: mpRoomInput?.value,
-    name: mpNameInput?.value
+    name: getMultiplayerName()
   });
   const name = getMultiplayerName();
+  const { name: roomName } = parseRoomInput();
   const password = mpPasswordInput?.value.trim() || '';
   const payload = {
     type: 'room:create',
     name,
+    displayName: roomName || name,
     password,
     mode: modeInput.value,
     settings: {
@@ -609,9 +646,10 @@ function handleMultiplayerCreate() {
 function handleMultiplayerJoin() {
   console.log('[mp] join click', {
     room: mpRoomInput?.value,
-    name: mpNameInput?.value
+    name: getMultiplayerName()
   });
-  const roomId = mpRoomInput?.value.trim().toUpperCase();
+  const { code } = parseRoomInput();
+  const roomId = code.toUpperCase();
   if (!roomId) {
     setMultiplayerStatus('enter a room code to join');
     return;
@@ -1556,7 +1594,7 @@ modeInput.addEventListener('change', () => {
 });
   if (multiplayerInput && mpControlsEl) {
     multiplayerInput.addEventListener('change', () => {
-  multiplayer.enabled = isMultiplayerValue(multiplayerInput.value);
+      multiplayer.enabled = isMultiplayerValue(multiplayerInput.value);
       mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
       if (!multiplayer.enabled && multiplayer.inRoom) {
         handleMultiplayerLeave();
@@ -1571,6 +1609,7 @@ if (mpCreateBtn) mpCreateBtn.addEventListener('click', handleMultiplayerCreate);
 if (mpJoinBtn) mpJoinBtn.addEventListener('click', handleMultiplayerJoin);
 if (mpListBtn) mpListBtn.addEventListener('click', handleMultiplayerList);
 if (mpLeaveBtn) mpLeaveBtn.addEventListener('click', handleMultiplayerLeave);
+if (mpStartBtn) mpStartBtn.addEventListener('click', () => sendWsMessage({ type: 'room:start' }));
 const setPowerModalOpen = async (isOpen) => {
   if (!powerModalEl) return;
   if (isOpen) {
