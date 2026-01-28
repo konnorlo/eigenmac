@@ -339,7 +339,7 @@ const broadcast = (room, payload) => {
 };
 
 const getParticipants = (room) => {
-  const players = Array.from(room.players.values()).map((p) => ({ ...p, isBot: false }));
+  const players = Array.from(room.players.values());
   return [...players, ...room.bots];
 };
 
@@ -542,7 +542,8 @@ wss.on('connection', (ws) => {
         name: ensureName(msg.name),
         score: 0,
         alive: true,
-        lastScoreTime: 0
+        lastScoreTime: 0,
+        isBot: false
       });
       rooms.set(id, room);
       client.roomId = id;
@@ -574,7 +575,8 @@ wss.on('connection', (ws) => {
         name: ensureName(msg.name),
         score: 0,
         alive: true,
-        lastScoreTime: 0
+        lastScoreTime: 0,
+        isBot: false
       });
       client.roomId = room.id;
       syncBots(room);
