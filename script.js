@@ -22,9 +22,6 @@ const DEFAULT_SYMMETRIC = false;
 const DEFAULT_MODE = 'classic';
 const DEFAULT_DIFFICULTY = 'medium';
 
-// Optional API (leave empty to disable)
-const API_BASE_URL = '';
-
 
 const BATTLE_DURATION = 110;
 const BATTLE_COMPETITORS = 99;
@@ -46,7 +43,6 @@ const answerEl = document.getElementById('answer');
 const timeEl = document.getElementById('time');
 const scoreEl = document.getElementById('score');
 const feedbackEl = document.getElementById('feedback');
-const negateBtn = document.getElementById('negate');
 
 const startBtn = document.getElementById('start');
 const editSettingsBtn = document.getElementById('edit-settings');
@@ -291,14 +287,7 @@ function generateProblem() {
     const diagonalOnly = matrix.every((row, r) =>
       row.every((val, c) => (r === c ? true : val === 0))
     );
-    const upperTriangular = matrix.every((row, r) =>
-      row.every((val, c) => (r > c ? val === 0 : true))
-    );
-    const lowerTriangular = matrix.every((row, r) =>
-      row.every((val, c) => (r < c ? val === 0 : true))
-    );
-    const trivialEigen = diagonalOnly || upperTriangular || lowerTriangular;
-    if (within && !trivialEigen) break;
+    if (within && !diagonalOnly) break;
   }
 
   return { matrix, eigenvalues };
@@ -349,27 +338,6 @@ function focusCurrentInput() {
     return;
   }
   focusInput(activeIndex);
-}
-
-function toggleNegative() {
-  const active = document.activeElement;
-  let input = null;
-  if (active && currentInputs.includes(active)) {
-    input = active;
-  } else {
-    input = currentInputs.find((i) => !i.disabled) || currentInputs[0];
-    if (input) input.focus();
-  }
-  if (!input) return;
-  const val = input.value.trim();
-  if (!val) {
-    input.value = '-';
-  } else if (val.startsWith('-')) {
-    input.value = val.slice(1);
-  } else {
-    input.value = `-${val}`;
-  }
-  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function parseInput(value) {
@@ -704,47 +672,6 @@ function updateBattleStatus() {
   renderLeaderboard(playerEntry);
 }
 
-async function ensureAuth() {
-  if (!API_BASE_URL) return null;
-  const stored = localStorage.getItem('eigenmac_auth');
-  if (stored) return JSON.parse(stored);
-
-  const username = prompt('Choose a username (letters/numbers/_)') || '';
-  const password = prompt('Choose a password (min 8 chars)') || '';
-  if (!username || password.length < 8) return null;
-
-  const auth = { username, password };
-  localStorage.setItem('eigenmac_auth', JSON.stringify(auth));
-  return auth;
-}
-
-async function submitScore(scoreValue) {
-  if (!API_BASE_URL) return;
-  const auth = await ensureAuth();
-  if (!auth) return;
-  const payload = { ...auth, score: scoreValue };
-  let res = await fetch(`${API_BASE_URL}/score`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (res.status === 401 || res.status === 404) {
-    const shouldCreate = confirm('Account not found. Create it?');
-    if (!shouldCreate) return;
-    const signupRes = await fetch(`${API_BASE_URL}/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(auth)
-    });
-    if (!signupRes.ok) return;
-    await fetch(`${API_BASE_URL}/score`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  }
-}
-
 
 function renderLeaderboard(playerEntry) {
   if (!leaderboardListEl) return;
@@ -1063,7 +990,6 @@ function endGame() {
   hideStaticDvd();
   clearDvdBoxes();
   battle.active = false;
-  submitScore(score);
 }
 
 function showStartScreen() {
@@ -1089,9 +1015,6 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
-if (negateBtn) {
-  negateBtn.addEventListener('click', toggleNegative);
-}
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space') return;
