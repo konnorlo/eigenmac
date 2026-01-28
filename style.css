@@ -158,6 +158,11 @@ body {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
 }
 
 .screen.hidden {
@@ -200,7 +205,8 @@ body {
 }
 
 #screen-start {
-  margin-top: 400px;
+  display: flex;
+  justify-content: center;
 }
 
 
@@ -325,6 +331,7 @@ button {
   min-height: 1px;
   display: flex;
   justify-content: center;
+  padding-top: 80px;
 }
 
 .battle-layout.single {
@@ -337,8 +344,8 @@ button {
 
 .leaderboard {
   position: absolute;
-  left: -260px;
-  top: 0;
+  left: calc(50% - 560px);
+  top: 120px;
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 12px;
