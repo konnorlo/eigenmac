@@ -27,6 +27,8 @@ const API_BASE_URL = 'https://eigenmac1.onrender.com';
 const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
 const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
 
+const isMultiplayerValue = (value) => value === 'multi' || value === 'multiplayer';
+
 
 const BATTLE_DURATION = 110;
 const BATTLE_COMPETITORS = 99;
@@ -585,7 +587,7 @@ function handleMultiplayerLeave() {
 }
 
 function handleMultiplayerStartClick() {
-  multiplayer.enabled = multiplayerInput?.value === 'multi';
+  multiplayer.enabled = isMultiplayerValue(multiplayerInput?.value);
   if (!multiplayer.enabled) {
     startGame();
     return;
@@ -1500,7 +1502,7 @@ modeInput.addEventListener('change', () => {
 });
   if (multiplayerInput && mpControlsEl) {
     multiplayerInput.addEventListener('change', () => {
-      multiplayer.enabled = multiplayerInput.value === 'multi';
+  multiplayer.enabled = isMultiplayerValue(multiplayerInput.value);
       mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
       if (!multiplayer.enabled && multiplayer.inRoom) {
         handleMultiplayerLeave();
@@ -1570,7 +1572,7 @@ window.addEventListener('load', () => {
   difficultyInput.value = DEFAULT_DIFFICULTY;
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
   if (multiplayerInput && mpControlsEl) {
-    multiplayer.enabled = multiplayerInput.value === 'multi';
+    multiplayer.enabled = isMultiplayerValue(multiplayerInput.value);
     mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
     if (multiplayer.enabled) {
       setMultiplayerStatus('create a room or join with a code');
