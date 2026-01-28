@@ -509,6 +509,7 @@ button {
 .tab-panel {
   display: grid;
   gap: 16px;
+  font-size: 0.75rem;
 }
 
 .section-title {

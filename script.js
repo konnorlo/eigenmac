@@ -28,7 +28,7 @@ const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
 const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
 
 // 0 = multiplayer, 1 = singleplayer
-let typeToggle = 0;
+let typeToggle = 1;
 
 const PRESETS = {
   p2: { timeLimit: 120, sizeMin: 2, sizeMax: 2, range: 8, symmetric: false },
