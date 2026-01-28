@@ -97,6 +97,7 @@ app.post('/solve', async (req, res) => {
   });
 
   if (!existing) {
+    const lastFive = [solveSeconds];
     const created = await prisma.userStat.create({
       data: {
         userId: user.id,
@@ -104,7 +105,9 @@ app.post('/solve', async (req, res) => {
         attempts: 1,
         bestScore: score,
         totalTime: solveSeconds,
-        avgTime: solveSeconds
+        avgTime: solveSeconds,
+        bestAvg5: 0,
+        lastFive
       }
     });
     res.json(created);
@@ -115,6 +118,11 @@ app.post('/solve', async (req, res) => {
   const newTotalTime = existing.totalTime + solveSeconds;
   const newAvg = newTotalTime / newAttempts;
   const newBest = Math.max(existing.bestScore, score);
+  const lastFive = Array.isArray(existing.lastFive) ? [...existing.lastFive] : [];
+  lastFive.push(solveSeconds);
+  while (lastFive.length > 5) lastFive.shift();
+  const avg5 = lastFive.length === 5 ? lastFive.reduce((a, b) => a + b, 0) / 5 : 0;
+  const newBestAvg5 = Math.max(existing.bestAvg5, avg5);
 
   const updated = await prisma.userStat.update({
     where: { userId_dimension: { userId: user.id, dimension } },
@@ -122,7 +130,9 @@ app.post('/solve', async (req, res) => {
       attempts: newAttempts,
       totalTime: newTotalTime,
       avgTime: newAvg,
-      bestScore: newBest
+      bestScore: newBest,
+      bestAvg5: newBestAvg5,
+      lastFive
     }
   });
 
@@ -132,6 +142,28 @@ app.post('/solve', async (req, res) => {
   });
 
   res.json({ ...updated, bestScore: bestOverall._max.bestScore ?? newBest });
+});
+
+app.get('/power-leaderboard', async (_req, res) => {
+  const users = await prisma.user.findMany({
+    include: { stats: true }
+  });
+  const factorial = (n) => {
+    let out = 1;
+    for (let i = 2; i <= n; i += 1) out *= i;
+    return out;
+  };
+  const items = users.map((u) => {
+    let power = 0;
+    u.stats.forEach((s) => {
+      if (s.bestAvg5 > 0) {
+        power = Math.max(power, s.bestAvg5 * factorial(s.dimension));
+      }
+    });
+    return { username: u.username, power };
+  }).sort((a, b) => b.power - a.power).slice(0, 20);
+
+  res.json({ items });
 });
 
 app.listen(PORT, () => {

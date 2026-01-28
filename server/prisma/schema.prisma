@@ -25,6 +25,8 @@ model UserStat {
   bestScore  Int      @default(0)
   totalTime  Float    @default(0)
   avgTime    Float    @default(0)
+  bestAvg5   Float    @default(0)
+  lastFive   Json?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

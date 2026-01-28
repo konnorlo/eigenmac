@@ -25,7 +25,17 @@
       <button id="auth-login" class="primary">login</button>
       <button id="auth-logout" class="ghost hidden">logout</button>
     </div>
+    <button id="power-toggle" class="ghost">power</button>
     <div class="auth-status" id="auth-status">not logged in</div>
+  </div>
+
+  <div class="power-modal hidden" id="power-modal">
+    <div class="power-card">
+      <div class="power-title">power leaderboard</div>
+      <div class="power-subtitle">best avg 5 in a row × (matrix size)!</div>
+      <ol class="power-list" id="power-list"></ol>
+      <button id="power-close" class="ghost">close</button>
+    </div>
   </div>
 
   <main class="app">

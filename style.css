@@ -58,6 +58,8 @@ body {
   width: 220px;
   display: grid;
   gap: 8px;
+  transform: scale(0.5);
+  transform-origin: top left;
 }
 
 .auth-title {
@@ -159,7 +161,7 @@ body {
   gap: 16px;
   flex-wrap: wrap;
   position: fixed;
-  top: 16px;
+  top: 96px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
@@ -344,14 +346,54 @@ button {
 
 .leaderboard {
   position: absolute;
-  left: calc(50% - 560px);
-  top: 120px;
+  left: calc(50% - 520px);
+  top: 160px;
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 12px;
   background: #ffffff;
   height: fit-content;
   width: 220px;
+}
+
+.power-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+}
+
+.power-card {
+  background: #ffffff;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  width: min(520px, 90vw);
+  display: grid;
+  gap: 10px;
+}
+
+.power-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.power-subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.power-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
 }
 
 .leaderboard-title {

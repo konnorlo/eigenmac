@@ -24,6 +24,7 @@ const DEFAULT_DIFFICULTY = 'medium';
 
 // Optional API (leave empty to disable)
 const API_BASE_URL = 'https://eigenmac1.onrender.com';
+const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
 
 
 const BATTLE_DURATION = 110;
@@ -64,6 +65,10 @@ const authSignupBtn = document.getElementById('auth-signup');
 const authLoginBtn = document.getElementById('auth-login');
 const authLogoutBtn = document.getElementById('auth-logout');
 const authStatusEl = document.getElementById('auth-status');
+const powerToggleBtn = document.getElementById('power-toggle');
+const powerModalEl = document.getElementById('power-modal');
+const powerListEl = document.getElementById('power-list');
+const powerCloseBtn = document.getElementById('power-close');
 
 const screenStart = document.getElementById('screen-start');
 const screenGame = document.getElementById('screen-game');
@@ -231,6 +236,12 @@ function randNormal(mean, std) {
   return mean + z * std;
 }
 
+function factorial(n) {
+  let out = 1;
+  for (let i = 2; i <= n; i += 1) out *= i;
+  return out;
+}
+
 async function ensureAuth() {
   if (!API_BASE_URL) return null;
   if (auth) return auth;
@@ -240,6 +251,21 @@ async function ensureAuth() {
     return auth;
   }
   return null;
+}
+
+async function refreshAuthStats() {
+  if (!API_BASE_URL || !auth) return;
+  const res = await fetch(`${API_BASE_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(auth)
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  if (typeof data.bestScore === 'number') {
+    bestScore = data.bestScore;
+    if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+  }
 }
 
 async function submitScore(scoreValue) {
@@ -274,6 +300,20 @@ async function submitSolve(dimension, solveSeconds, dimensionScore) {
       if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
     }
   }
+}
+
+async function fetchPowerLeaderboard() {
+  if (!API_BASE_URL || !powerListEl) return;
+  const res = await fetch(`${API_BASE_URL}/power-leaderboard`);
+  if (!res.ok) return;
+  const data = await res.json();
+  powerListEl.innerHTML = '';
+  data.items.forEach((row, idx) => {
+    const li = document.createElement('li');
+    li.className = 'leaderboard-item';
+    li.innerHTML = `<span class="leaderboard-rank">${idx + 1}</span><span class="leaderboard-name">${row.username}</span><span class="leaderboard-score">${row.power.toFixed(2)}</span>`;
+    powerListEl.appendChild(li);
+  });
 }
 
 function setAuth(nextAuth) {
@@ -408,7 +448,17 @@ function generateProblem() {
     const diagonalOnly = matrix.every((row, r) =>
       row.every((val, c) => (r === c ? true : val === 0))
     );
-    if (within && !diagonalOnly) break;
+    const upperTriangular = matrix.every((row, r) =>
+      row.every((val, c) => (r > c ? val === 0 : true))
+    );
+    const lowerTriangular = matrix.every((row, r) =>
+      row.every((val, c) => (r < c ? val === 0 : true))
+    );
+    const diagValues = matrix.map((row, i) => row[i]).slice().sort((a, b) => a - b);
+    const eigValues = eigenvalues.slice().sort((a, b) => a - b);
+    const diagonalEqualsEigen = diagValues.every((v, i) => v === eigValues[i]);
+    const trivialEigen = diagonalOnly || upperTriangular || lowerTriangular || diagonalEqualsEigen;
+    if (within && !trivialEigen) break;
   }
 
   return { matrix, eigenvalues };
@@ -1143,6 +1193,19 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
+if (powerToggleBtn && powerModalEl) {
+  powerToggleBtn.addEventListener('click', async () => {
+    powerModalEl.classList.toggle('hidden');
+    if (!powerModalEl.classList.contains('hidden')) {
+      await fetchPowerLeaderboard();
+    }
+  });
+}
+if (powerCloseBtn && powerModalEl) {
+  powerCloseBtn.addEventListener('click', () => {
+    powerModalEl.classList.add('hidden');
+  });
+}
 if (authSignupBtn) authSignupBtn.addEventListener('click', handleSignup);
 if (authLoginBtn) authLoginBtn.addEventListener('click', handleLogin);
 if (authLogoutBtn) authLogoutBtn.addEventListener('click', handleLogout);
@@ -1167,7 +1230,10 @@ window.addEventListener('load', () => {
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
   if (API_BASE_URL) {
     const stored = localStorage.getItem('eigenmac_auth');
-    if (stored) setAuth(JSON.parse(stored));
+    if (stored) {
+      setAuth(JSON.parse(stored));
+      refreshAuthStats();
+    }
   } else {
     setAuth(null);
   }
