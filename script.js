@@ -383,7 +383,7 @@ function updateStartButtonLabel() {
     return;
   }
   if (!multiplayer.inRoom) {
-    startBtn.textContent = 'create / join';
+    startBtn.textContent = 'create room';
     return;
   }
   if (multiplayer.isHost && !multiplayer.started) {
@@ -1334,6 +1334,10 @@ function animateDvds() {
 
 function startGame(options = {}) {
   const { fromMultiplayer = false, timeLeftOverride = null } = options;
+  if (multiplayer.enabled && !fromMultiplayer) {
+    setMultiplayerStatus('create or join a room first');
+    return;
+  }
   if (!fromMultiplayer) {
     settings = {
       timeLimit: Number(timeLimitInput.value),
@@ -1494,16 +1498,19 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
-if (multiplayerInput && mpControlsEl) {
-  multiplayerInput.addEventListener('change', () => {
-    multiplayer.enabled = multiplayerInput.value === 'multi';
-    mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
-    if (!multiplayer.enabled && multiplayer.inRoom) {
-      handleMultiplayerLeave();
-    }
-    updateStartButtonLabel();
-  });
-}
+  if (multiplayerInput && mpControlsEl) {
+    multiplayerInput.addEventListener('change', () => {
+      multiplayer.enabled = multiplayerInput.value === 'multi';
+      mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
+      if (!multiplayer.enabled && multiplayer.inRoom) {
+        handleMultiplayerLeave();
+      }
+      if (multiplayer.enabled) {
+        setMultiplayerStatus('create a room or join with a code');
+      }
+      updateStartButtonLabel();
+    });
+  }
 if (mpCreateBtn) mpCreateBtn.addEventListener('click', handleMultiplayerCreate);
 if (mpJoinBtn) mpJoinBtn.addEventListener('click', handleMultiplayerJoin);
 if (mpListBtn) mpListBtn.addEventListener('click', handleMultiplayerList);
@@ -1565,6 +1572,9 @@ window.addEventListener('load', () => {
   if (multiplayerInput && mpControlsEl) {
     multiplayer.enabled = multiplayerInput.value === 'multi';
     mpControlsEl.classList.toggle('hidden', !multiplayer.enabled);
+    if (multiplayer.enabled) {
+      setMultiplayerStatus('create a room or join with a code');
+    }
     updateStartButtonLabel();
   }
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
