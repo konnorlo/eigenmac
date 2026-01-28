@@ -27,6 +27,9 @@ const API_BASE_URL = 'https://eigenmac1.onrender.com';
 const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
 const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
 
+// 0 = multiplayer, 1 = singleplayer
+let typeToggle = 0;
+
 const PRESETS = {
   p2: { timeLimit: 120, sizeMin: 2, sizeMax: 2, range: 8, symmetric: false },
   p3: { timeLimit: 120, sizeMin: 3, sizeMax: 3, range: 6, symmetric: false },
@@ -523,6 +526,7 @@ function updateStartButtonLabel() {
 }
 
 function setStartTab(tab) {
+  typeToggle = tab === 'multi' ? 0 : 1;
   activeStartTab = tab;
   if (tabSingleBtn) tabSingleBtn.classList.toggle('active', tab === 'single');
   if (tabMultiBtn) tabMultiBtn.classList.toggle('active', tab === 'multi');
@@ -1825,7 +1829,7 @@ window.addEventListener('load', () => {
   if (mpModeInput) mpModeInput.value = 'classic';
   if (mpDifficultyInput) mpDifficultyInput.value = DEFAULT_DIFFICULTY;
   if (mpDifficultyWrap) mpDifficultyWrap.classList.add('hidden');
-  setStartTab('single');
+  setStartTab(typeToggle === 0 ? 'multi' : 'single');
   setMpTab('create');
   selectPreset(selectedPresetSingle, 'single');
   selectPreset(selectedPresetMulti, 'multi');
