@@ -46,6 +46,7 @@ const answerEl = document.getElementById('answer');
 const timeEl = document.getElementById('time');
 const scoreEl = document.getElementById('score');
 const feedbackEl = document.getElementById('feedback');
+const negateBtn = document.getElementById('negate');
 
 const startBtn = document.getElementById('start');
 const editSettingsBtn = document.getElementById('edit-settings');
@@ -348,6 +349,27 @@ function focusCurrentInput() {
     return;
   }
   focusInput(activeIndex);
+}
+
+function toggleNegative() {
+  const active = document.activeElement;
+  let input = null;
+  if (active && currentInputs.includes(active)) {
+    input = active;
+  } else {
+    input = currentInputs.find((i) => !i.disabled) || currentInputs[0];
+    if (input) input.focus();
+  }
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) {
+    input.value = '-';
+  } else if (val.startsWith('-')) {
+    input.value = val.slice(1);
+  } else {
+    input.value = `-${val}`;
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function parseInput(value) {
@@ -1067,6 +1089,9 @@ editSettingsBtn.addEventListener('click', showStartScreen);
 modeInput.addEventListener('change', () => {
   difficultyWrap.classList.toggle('hidden', modeInput.value !== 'battle');
 });
+if (negateBtn) {
+  negateBtn.addEventListener('click', toggleNegative);
+}
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'Space') return;
