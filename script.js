@@ -526,8 +526,14 @@ function setStartTab(tab) {
   activeStartTab = tab;
   if (tabSingleBtn) tabSingleBtn.classList.toggle('active', tab === 'single');
   if (tabMultiBtn) tabMultiBtn.classList.toggle('active', tab === 'multi');
-  if (panelSingle) panelSingle.classList.toggle('hidden', tab !== 'single');
-  if (panelMulti) panelMulti.classList.toggle('hidden', tab !== 'multi');
+  if (panelSingle) {
+    panelSingle.classList.toggle('hidden', tab !== 'single');
+    panelSingle.style.display = tab === 'single' ? 'grid' : 'none';
+  }
+  if (panelMulti) {
+    panelMulti.classList.toggle('hidden', tab !== 'multi');
+    panelMulti.style.display = tab === 'multi' ? 'grid' : 'none';
+  }
   if (tab === 'single') {
     if (multiplayer.inRoom) handleMultiplayerLeave();
     multiplayer.enabled = false;
