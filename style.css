@@ -486,6 +486,20 @@ button {
   color: var(--muted);
 }
 
+.mp-players {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.mp-player {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .mp-room {
   display: flex;
   justify-content: space-between;

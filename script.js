@@ -71,6 +71,7 @@ const mpCreateBtn = document.getElementById('mp-create');
 const mpJoinBtn = document.getElementById('mp-join');
 const mpListBtn = document.getElementById('mp-list');
 const mpRoomsEl = document.getElementById('mp-rooms');
+const mpPlayersEl = document.getElementById('mp-players');
 const authUsernameInput = document.getElementById('auth-username');
 const authPasswordInput = document.getElementById('auth-password');
 const authSignupBtn = document.getElementById('auth-signup');
@@ -225,6 +226,7 @@ let multiplayer = {
   placement: 0,
   timeLeft: 0,
   nextCutIn: 0,
+  lastRoomId: null,
   ws: null
 };
 
@@ -440,6 +442,21 @@ function renderMultiplayerLeaderboard(items) {
   });
 }
 
+function renderMultiplayerPlayers(players) {
+  if (!mpPlayersEl) return;
+  mpPlayersEl.innerHTML = '';
+  if (!players || !players.length) {
+    mpPlayersEl.textContent = 'no players yet';
+    return;
+  }
+  players.forEach((name) => {
+    const row = document.createElement('div');
+    row.className = 'mp-player';
+    row.textContent = name;
+    mpPlayersEl.appendChild(row);
+  });
+}
+
 function sendWsMessage(payload) {
   if (!multiplayer.ws || multiplayer.ws.readyState !== 1) return;
   multiplayer.ws.send(JSON.stringify(payload));
@@ -465,8 +482,10 @@ function resetMultiplayerState() {
   multiplayer.placement = 0;
   multiplayer.timeLeft = 0;
   multiplayer.nextCutIn = 0;
+  multiplayer.lastRoomId = null;
   setMultiplayerStatus('');
   if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
+  if (mpPlayersEl) mpPlayersEl.innerHTML = '';
   if (leaderboardEl && !battle.active) leaderboardEl.classList.add('hidden');
   if (battleLayoutEl && !battle.active) battleLayoutEl.classList.add('single');
   updateStartButtonLabel();
@@ -486,6 +505,8 @@ function handleWsMessage(data) {
     multiplayer.enabled = true;
     if (multiplayerInput) multiplayerInput.value = 'multi';
     if (mpControlsEl) mpControlsEl.classList.remove('hidden');
+    const wasInRoom = multiplayer.inRoom;
+    const prevRoomId = multiplayer.roomId;
     multiplayer.inRoom = true;
     multiplayer.roomId = data.room.id;
     multiplayer.roomMode = data.room.mode;
@@ -493,7 +514,11 @@ function handleWsMessage(data) {
     multiplayer.isHost = data.room.hostId === wsClientId;
     multiplayer.started = data.room.started;
     if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
-    setMultiplayerStatus(`room ${data.room.id} · ${data.room.players} players`);
+    const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
+      ? (multiplayer.isHost ? 'room created' : 'joined room')
+      : 'room';
+    setMultiplayerStatus(`${statusPrefix} ${data.room.id} · ${data.room.players} players`);
+    renderMultiplayerPlayers(data.room.playerNames || []);
     updateStartButtonLabel();
     return;
   }

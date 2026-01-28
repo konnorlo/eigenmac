@@ -68,6 +68,12 @@ const createRoomId = () => {
   return id;
 };
 
+const ensureName = (name) => {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (trimmed) return trimmed;
+  return `guest_${randInt(1000, 9999)}`;
+};
+
 const averageSizeFactor = (settings) => {
   const avgSize = (settings.sizeMin + settings.sizeMax) / 2;
   return 2 / (Math.max(2, avgSize) ** 1.21);
@@ -388,7 +394,8 @@ const sendRoomState = (room) => {
       started: room.started,
       hostId: room.hostId,
       players: room.players.size,
-      maxPlayers: room.maxPlayers
+      maxPlayers: room.maxPlayers,
+      playerNames: Array.from(room.players.values()).map((p) => p.name)
     }
   };
   broadcast(room, payload);
@@ -523,7 +530,7 @@ wss.on('connection', (ws) => {
       };
       room.players.set(clientId, {
         id: clientId,
-        name: msg.name || 'player',
+        name: ensureName(msg.name),
         score: 0,
         alive: true,
         lastScoreTime: 0
@@ -555,7 +562,7 @@ wss.on('connection', (ws) => {
       }
       room.players.set(clientId, {
         id: clientId,
-        name: msg.name || 'player',
+        name: ensureName(msg.name),
         score: 0,
         alive: true,
         lastScoreTime: 0
