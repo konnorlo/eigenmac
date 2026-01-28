@@ -365,6 +365,10 @@ button {
   place-items: center;
 }
 
+.power-modal.hidden {
+  display: none;
+}
+
 .power-card {
   background: #ffffff;
   border: 2px solid var(--border);
