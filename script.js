@@ -555,9 +555,18 @@ function setMpTab(tab) {
   if (mpTabCreate) mpTabCreate.classList.toggle('active', tab === 'create');
   if (mpTabJoin) mpTabJoin.classList.toggle('active', tab === 'join');
   if (mpTabPublic) mpTabPublic.classList.toggle('active', tab === 'public');
-  if (mpPanelCreate) mpPanelCreate.classList.toggle('hidden', tab !== 'create');
-  if (mpPanelJoin) mpPanelJoin.classList.toggle('hidden', tab !== 'join');
-  if (mpPanelPublic) mpPanelPublic.classList.toggle('hidden', tab !== 'public');
+  if (mpPanelCreate) {
+    mpPanelCreate.classList.toggle('hidden', tab !== 'create');
+    mpPanelCreate.style.display = tab === 'create' ? 'grid' : 'none';
+  }
+  if (mpPanelJoin) {
+    mpPanelJoin.classList.toggle('hidden', tab !== 'join');
+    mpPanelJoin.style.display = tab === 'join' ? 'grid' : 'none';
+  }
+  if (mpPanelPublic) {
+    mpPanelPublic.classList.toggle('hidden', tab !== 'public');
+    mpPanelPublic.style.display = tab === 'public' ? 'grid' : 'none';
+  }
 }
 
 function selectPreset(presetKey, scope = 'single') {
