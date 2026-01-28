@@ -1788,6 +1788,27 @@ document.addEventListener('keydown', (event) => {
   if (activeStartTab === 'single') startGame();
 });
 
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'Space') return;
+  if (screenStart.classList.contains('hidden')) return;
+  event.preventDefault();
+  if (activeStartTab === 'single') {
+    startGame();
+    return;
+  }
+  if (activeMpTab === 'create') {
+    handleMultiplayerCreate();
+    return;
+  }
+  if (activeMpTab === 'join') {
+    handleMultiplayerJoin();
+    return;
+  }
+  if (activeMpTab === 'public') {
+    handleMultiplayerList();
+  }
+});
+
 window.addEventListener('load', () => {
   statsEl.style.visibility = 'hidden';
   applyPresetToInputs(PRESETS[selectedPresetSingle], 'single');
