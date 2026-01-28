@@ -376,10 +376,17 @@ function getMultiplayerName() {
 
 function setMultiplayerStatus(text) {
   if (mpStatusEl) mpStatusEl.textContent = text || '';
+  console.log('[mp] status', text);
 }
 
 function updateStartButtonLabel() {
   if (!startBtn) return;
+  console.log('[mp] updateStartButtonLabel', {
+    enabled: multiplayer.enabled,
+    inRoom: multiplayer.inRoom,
+    isHost: multiplayer.isHost,
+    started: multiplayer.started
+  });
   if (!multiplayer.enabled) {
     startBtn.textContent = 'start';
     return;
@@ -522,14 +529,17 @@ function handleWsMessage(data) {
 function ensureMultiplayerSocket() {
   if (!WS_BASE_URL) return;
   if (multiplayer.ws && multiplayer.ws.readyState === 1) return;
+  console.log('[mp] connecting ws', WS_BASE_URL);
   multiplayer.ws = new WebSocket(WS_BASE_URL.replace(/^http/, 'ws'));
   multiplayer.ws.addEventListener('open', () => {
     multiplayer.connected = true;
+    console.log('[mp] ws open');
     updateStartButtonLabel();
   });
   multiplayer.ws.addEventListener('message', (event) => {
     try {
       const data = JSON.parse(event.data);
+      console.log('[mp] ws message', data);
       handleWsMessage(data);
     } catch {
       // ignore
@@ -537,14 +547,21 @@ function ensureMultiplayerSocket() {
   });
   multiplayer.ws.addEventListener('close', () => {
     multiplayer.connected = false;
+    console.log('[mp] ws closed');
     resetMultiplayerState();
   });
   multiplayer.ws.addEventListener('error', () => {
     multiplayer.connected = false;
+    console.log('[mp] ws error');
   });
 }
 
 function handleMultiplayerCreate() {
+  console.log('[mp] create click', {
+    mode: modeInput.value,
+    room: mpRoomInput?.value,
+    name: mpNameInput?.value
+  });
   const name = getMultiplayerName();
   const password = mpPasswordInput?.value.trim() || '';
   const payload = {
@@ -565,6 +582,10 @@ function handleMultiplayerCreate() {
 }
 
 function handleMultiplayerJoin() {
+  console.log('[mp] join click', {
+    room: mpRoomInput?.value,
+    name: mpNameInput?.value
+  });
   const roomId = mpRoomInput?.value.trim().toUpperCase();
   if (!roomId) {
     setMultiplayerStatus('enter a room code to join');
@@ -576,10 +597,12 @@ function handleMultiplayerJoin() {
 }
 
 function handleMultiplayerList() {
+  console.log('[mp] list click');
   sendWsWhenReady({ type: 'room:list' });
 }
 
 function handleMultiplayerLeave() {
+  console.log('[mp] leave click');
   if (!multiplayer.ws || !multiplayer.inRoom) return;
   sendWsMessage({ type: 'room:leave' });
   resetMultiplayerState();
@@ -588,6 +611,12 @@ function handleMultiplayerLeave() {
 
 function handleMultiplayerStartClick() {
   multiplayer.enabled = isMultiplayerValue(multiplayerInput?.value);
+  console.log('[mp] start click', {
+    enabled: multiplayer.enabled,
+    inRoom: multiplayer.inRoom,
+    isHost: multiplayer.isHost,
+    started: multiplayer.started
+  });
   if (!multiplayer.enabled) {
     startGame();
     return;
