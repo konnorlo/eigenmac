@@ -510,6 +510,8 @@ button {
   display: grid;
   gap: 16px;
   font-size: 0.75rem;
+  justify-items: center;
+  text-align: center;
 }
 
 .section-title {
@@ -551,12 +553,14 @@ button {
   gap: 12px;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
 }
 
 .settings-grid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  justify-items: center;
 }
 
 .mp-controls {
