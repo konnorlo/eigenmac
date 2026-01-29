@@ -14,6 +14,10 @@
   box-sizing: border-box;
 }
 
+html {
+  font-size: clamp(12px, 1vw + 8px, 18px);
+}
+
 body {
   margin: 0;
   font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
@@ -199,13 +203,14 @@ body {
 
 .card {
   background: var(--card);
-  padding: 28px;
-  border-radius: 16px;
+  padding: clamp(16px, 3vw, 28px);
+  border-radius: clamp(12px, 2vw, 16px);
   border: 2px solid var(--border);
 }
 
 #screen-start .card {
   background: rgba(255, 255, 255, 0.91);
+  width: min(92vw, 620px);
 }
 
 #screen-start {
@@ -225,23 +230,25 @@ body {
 .matrix {
   font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
   display: grid;
-  grid-template-columns: repeat(var(--n, 2), 110px);
-  gap: 12px;
+  --cell-size: clamp(56px, 8vw, 110px);
+  grid-template-columns: repeat(var(--n, 2), var(--cell-size));
+  gap: clamp(6px, 1.5vw, 12px);
   justify-content: center;
-  padding: 20px;
+  padding: clamp(12px, 2vw, 20px);
   background: #ffffff;
   border-radius: 12px;
   border: 2px solid var(--border);
-  font-size: 1.8rem;
-  margin-bottom: 20px;
+  font-size: clamp(1.1rem, 3vw, 1.8rem);
+  margin-bottom: clamp(12px, 2vw, 20px);
 }
 
 .matrix-cell {
   background: #ffffff;
-  padding: 16px;
+  padding: clamp(8px, 1.5vw, 16px);
   text-align: center;
   border-radius: 10px;
   border: 2px solid var(--border);
+  font-size: clamp(0.9rem, 2vw, 1.4rem);
 }
 
 .answer {
@@ -255,9 +262,9 @@ body {
   color: var(--text);
   border: 2px solid var(--border);
   border-radius: 12px;
-  padding: 14px 16px;
-  font-size: 1.2rem;
-  min-width: 140px;
+  padding: clamp(8px, 1.6vw, 14px) clamp(10px, 2vw, 16px);
+  font-size: clamp(1rem, 2.4vw, 1.2rem);
+  min-width: clamp(110px, 20vw, 160px);
   text-align: center;
 }
 

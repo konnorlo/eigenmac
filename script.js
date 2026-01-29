@@ -687,6 +687,7 @@ function resetMultiplayerState() {
   setMultiplayerStatus('');
   setRoomStatus('');
   if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
+  if (mpCreateBtn) mpCreateBtn.classList.remove('hidden');
   if (mpStartBtn) mpStartBtn.classList.add('hidden');
   if (mpPlayersTitleEl) mpPlayersTitleEl.textContent = 'Players:';
   if (mpPlayersEl) mpPlayersEl.innerHTML = '';
@@ -721,6 +722,7 @@ function handleWsMessage(data) {
       multiplayer.problemIndex = 0;
     }
     if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
+    if (mpCreateBtn) mpCreateBtn.classList.add('hidden');
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
       ? (multiplayer.isHost ? 'room created' : 'joined room')
       : 'room';

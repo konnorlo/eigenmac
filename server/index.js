@@ -23,7 +23,7 @@ app.use((req, _res, next) => {
 });
 
 const MAX_PLAYERS = 100;
-const ROOM_TTL_MS = 10 * 60 * 1000;
+const ROOM_TTL_MS = 5 * 60 * 1000;
 const CUT_TIMES = [23, 39, 55, 66, 78, 94, 109, 125, 140];
 const CUT_RANKS = [60, 45, 30, 25, 18, 12, 8, 5, 3];
 const BATTLE_DURATION = 110;
@@ -444,10 +444,10 @@ const startRoom = (room) => {
   sendRoomState(room);
   sendRoomTick(room);
   if (room.interval) clearInterval(room.interval);
-  room.interval = setInterval(() => {
-    room.t += 1;
-    room.timeLeft = Math.max(0, room.timeLeft - 1);
-    updateBots(room);
+      room.interval = setInterval(() => {
+        room.t += 1;
+        room.timeLeft = Math.max(0, room.timeLeft - 1);
+        updateBots(room);
     if (room.mode === 'battle') {
       const nextCutTime = CUT_TIMES[room.cutIndex];
       const nextCutRank = CUT_RANKS[room.cutIndex];
@@ -472,13 +472,19 @@ const startRoom = (room) => {
         : null;
       broadcast(room, { type: 'room:end', status: winnerName ? `${winnerName} won` : 'match ended', winnerId: room.winnerId });
     }
+    room.lastActivity = Date.now();
   }, 1000);
 };
 
 const cleanupRooms = () => {
   const now = Date.now();
   rooms.forEach((room, roomId) => {
-    if (room.players.size === 0 && now - room.createdAt > ROOM_TTL_MS) {
+    if (room.players.size === 0) {
+      if (room.interval) clearInterval(room.interval);
+      rooms.delete(roomId);
+      return;
+    }
+    if (!room.started && now - room.lastActivity > ROOM_TTL_MS) {
       if (room.interval) clearInterval(room.interval);
       rooms.delete(roomId);
     }
@@ -550,7 +556,8 @@ wss.on('connection', (ws) => {
         cutIndex: 0,
         timeLeft: 0,
         interval: null,
-        winnerId: null
+        winnerId: null,
+        lastActivity: Date.now()
       };
       room.players.set(clientId, {
         id: clientId,
@@ -562,6 +569,7 @@ wss.on('connection', (ws) => {
       });
       rooms.set(id, room);
       client.roomId = id;
+      room.lastActivity = Date.now();
       syncBots(room);
       sendRoomState(room);
       return;
@@ -594,6 +602,7 @@ wss.on('connection', (ws) => {
         isBot: false
       });
       client.roomId = room.id;
+      room.lastActivity = Date.now();
       syncBots(room);
       sendRoomState(room);
       return;
@@ -604,6 +613,7 @@ wss.on('connection', (ws) => {
         const room = rooms.get(client.roomId);
         if (room) {
           room.players.delete(clientId);
+          room.lastActivity = Date.now();
           if (room.hostId === clientId) {
             const nextHost = room.players.keys().next().value;
             room.hostId = nextHost || null;
@@ -625,6 +635,7 @@ wss.on('connection', (ws) => {
       const room = rooms.get(client.roomId);
       if (!room || room.hostId !== clientId) return;
       room.winnerId = null;
+      room.lastActivity = Date.now();
       startRoom(room);
       return;
     }
@@ -634,6 +645,7 @@ wss.on('connection', (ws) => {
       if (!room || !room.started) return;
       const player = room.players.get(clientId);
       if (!player || !player.alive) return;
+      room.lastActivity = Date.now();
       const nextScore = Math.max(player.score, Number(msg.score || 0));
       if (nextScore !== player.score) {
         player.score = nextScore;
@@ -649,6 +661,7 @@ wss.on('connection', (ws) => {
       const room = rooms.get(client.roomId);
       if (room) {
         room.players.delete(clientId);
+        room.lastActivity = Date.now();
         if (room.hostId === clientId) {
           const nextHost = room.players.keys().next().value;
           room.hostId = nextHost || null;
