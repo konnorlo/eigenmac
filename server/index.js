@@ -515,6 +515,10 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.type === 'room:create') {
+      if (client.roomId) {
+        send(ws, { type: 'room:error', message: 'already hosting or in a room' });
+        return;
+      }
       const id = createRoomId();
       const password = msg.password || '';
       const incoming = msg.settings || {};

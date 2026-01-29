@@ -590,6 +590,16 @@ button {
   margin-top: 4px;
 }
 
+.mp-loading {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+  text-align: center;
+}
+
 .mp-players-title {
   font-size: 0.9rem;
   color: var(--muted);

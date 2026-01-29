@@ -126,13 +126,14 @@ const mpRangeInput = document.getElementById('mp-range');
 const mpSymmetricInput = document.getElementById('mp-symmetric');
 const mpSizeMinInput = document.getElementById('mp-size-min');
 const mpSizeMaxInput = document.getElementById('mp-size-max');
-const mpCreateBtn = document.getElementById('mp-create');
 const mpJoinBtn = document.getElementById('mp-join');
 const mpListBtn = document.getElementById('mp-list');
 const mpRoomsEl = document.getElementById('mp-rooms');
 const mpRoomStatusEl = document.getElementById('mp-room-status');
 const mpPlayersTitleEl = document.getElementById('mp-players-title');
 const mpPlayersEl = document.getElementById('mp-players');
+const mpLoadingEl = document.getElementById('mp-loading');
+const mpCreateBtn = document.getElementById('mp-create');
 const authUsernameInput = document.getElementById('auth-username');
 const authPasswordInput = document.getElementById('auth-password');
 const authSignupBtn = document.getElementById('auth-signup');
@@ -455,6 +456,11 @@ function setRoomStatus(html) {
   mpRoomStatusEl.innerHTML = html || '';
 }
 
+function setMpLoading(isLoading) {
+  if (!mpLoadingEl) return;
+  mpLoadingEl.classList.toggle('hidden', !isLoading);
+}
+
 function setPresetButtons(gridEl, presetKey) {
   if (!gridEl) return;
   Array.from(gridEl.querySelectorAll('.preset')).forEach((btn) => {
@@ -714,7 +720,7 @@ function handleWsMessage(data) {
     if (!wasInRoom || prevRoomId !== data.room.id) {
       multiplayer.problemIndex = 0;
     }
-  if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
+    if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
       ? (multiplayer.isHost ? 'room created' : 'joined room')
       : 'room';
@@ -725,6 +731,7 @@ function handleWsMessage(data) {
     setMultiplayerStatus(`code: ${data.room.id}`);
     renderMultiplayerPlayers(data.room.playersList || []);
     updateStartButtonLabel();
+    setMpLoading(false);
     return;
   }
   if (data.type === 'room:tick') {
@@ -762,6 +769,7 @@ function handleWsMessage(data) {
   }
   if (data.type === 'room:error') {
     setMultiplayerStatus(data.message || 'multiplayer error');
+    setMpLoading(false);
     return;
   }
 }
@@ -770,6 +778,7 @@ function ensureMultiplayerSocket() {
   if (!WS_BASE_URL) return;
   if (multiplayer.ws && multiplayer.ws.readyState === 1) return;
   console.log('[mp] connecting ws', WS_BASE_URL);
+  setMpLoading(true);
   multiplayer.ws = new WebSocket(WS_BASE_URL.replace(/^http/, 'ws'));
   multiplayer.ws.addEventListener('open', () => {
     multiplayer.connected = true;
@@ -802,6 +811,7 @@ function handleMultiplayerCreate() {
     room: mpRoomNameInput?.value,
     name: getMultiplayerName()
   });
+  setMpLoading(true);
   const name = getMultiplayerName();
   multiplayer.playerName = name;
   const roomName = mpRoomNameInput?.value.trim() || 'room';
