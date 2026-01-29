@@ -25,14 +25,34 @@
       <button id="auth-login" class="primary">login</button>
       <button id="auth-logout" class="ghost hidden">logout</button>
     </div>
-    <button id="power-toggle" class="ghost">power</button>
+    <button id="power-toggle" class="ghost">leaderboard</button>
     <div class="auth-status" id="auth-status">not logged in</div>
   </div>
 
   <div class="power-modal hidden" id="power-modal">
     <div class="power-card">
-      <div class="power-title">power leaderboard</div>
-      <div class="power-subtitle">best avg 5 in a row × (matrix size)!</div>
+      <div class="power-title">leaderboard</div>
+      <div class="power-subtitle">per mode, per preset</div>
+      <div class="leaderboard-controls">
+        <label>
+          mode
+          <select id="leaderboard-mode">
+            <option value="classic" selected>classic</option>
+            <option value="battle">battle</option>
+          </select>
+        </label>
+        <label>
+          preset
+          <select id="leaderboard-preset">
+            <option value="p2" selected>2x2</option>
+            <option value="p3">3x3</option>
+            <option value="p4">4x4</option>
+            <option value="p5">5x5</option>
+            <option value="custom">custom</option>
+          </select>
+        </label>
+        <button id="leaderboard-refresh" class="ghost">refresh</button>
+      </div>
       <ol class="power-list" id="power-list"></ol>
       <button id="power-close" class="ghost">close</button>
     </div>
@@ -48,7 +68,12 @@
         <div class="stat-label">score</div>
         <div class="stat-value" id="score">0</div>
       </div>
+      <div class="stat" id="rank-stat">
+        <div class="stat-label">rank</div>
+        <div class="stat-value" id="rank-value">-</div>
+      </div>
     </div>
+    <div class="preset-stats" id="preset-stats"></div>
 
     <section class="screen" id="screen-start">
       <div class="card">
@@ -227,6 +252,16 @@
             <div class="mp-actions">
               <button id="mp-leave" class="ghost hidden">leave room</button>
               <button id="mp-start" class="primary hidden" disabled>start game</button>
+              <button id="mp-lock" class="ghost hidden">lock settings</button>
+            </div>
+            <div class="mp-lock-status" id="mp-lock-status"></div>
+            <div class="mp-chat">
+              <div class="mp-chat-title">lobby chat</div>
+              <div class="mp-chat-log" id="mp-chat-log"></div>
+              <div class="mp-chat-input">
+                <input id="mp-chat-text" type="text" placeholder="type a message" />
+                <button id="mp-chat-send" class="ghost">send</button>
+              </div>
             </div>
           </div>
 
@@ -239,6 +274,10 @@
               <label>
                 room password (optional)
                 <input id="mp-join-password" type="text" placeholder="password" />
+              </label>
+              <label class="inline-check">
+                <input id="mp-spectate" type="checkbox" />
+                spectate only
               </label>
             </div>
             <div class="actions">
@@ -257,6 +296,7 @@
     </section>
 
     <section class="screen hidden" id="screen-game">
+      <button id="leave-game" class="ghost leave-game">leave</button>
       <div class="battle-layout" id="battle-layout">
         <aside class="leaderboard hidden" id="leaderboard">
           <div class="leaderboard-title">leaderboard</div>

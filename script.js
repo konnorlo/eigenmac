@@ -25,7 +25,8 @@ const DEFAULT_DIFFICULTY = 'medium';
 // API
 const API_BASE_URL = 'https://eigenmac1.onrender.com';
 const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
-const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
+const POWER_FORMULA = 'per mode, per preset leaderboards';
+const RECONNECT_TOKEN_KEY = 'eigenmac_reconnect_token';
 
 // 0 = multiplayer, 1 = singleplayer
 let typeToggle = 1;
@@ -88,6 +89,7 @@ const answerEl = document.getElementById('answer');
 const timeEl = document.getElementById('time');
 const scoreEl = document.getElementById('score');
 const feedbackEl = document.getElementById('feedback');
+const rankValueEl = document.getElementById('rank-value');
 
 const startBtn = document.getElementById('start');
 const editSettingsBtn = document.getElementById('edit-settings');
@@ -134,6 +136,12 @@ const mpPlayersTitleEl = document.getElementById('mp-players-title');
 const mpPlayersEl = document.getElementById('mp-players');
 const mpLoadingEl = document.getElementById('mp-loading');
 const mpCreateBtn = document.getElementById('mp-create');
+const mpLockBtn = document.getElementById('mp-lock');
+const mpLockStatusEl = document.getElementById('mp-lock-status');
+const mpChatLogEl = document.getElementById('mp-chat-log');
+const mpChatTextEl = document.getElementById('mp-chat-text');
+const mpChatSendBtn = document.getElementById('mp-chat-send');
+const mpSpectateInput = document.getElementById('mp-spectate');
 const authUsernameInput = document.getElementById('auth-username');
 const authPasswordInput = document.getElementById('auth-password');
 const authSignupBtn = document.getElementById('auth-signup');
@@ -144,11 +152,15 @@ const powerToggleBtn = document.getElementById('power-toggle');
 const powerModalEl = document.getElementById('power-modal');
 const powerListEl = document.getElementById('power-list');
 const powerCloseBtn = document.getElementById('power-close');
+const leaderboardModeEl = document.getElementById('leaderboard-mode');
+const leaderboardPresetEl = document.getElementById('leaderboard-preset');
+const leaderboardRefreshBtn = document.getElementById('leaderboard-refresh');
 
 const screenStart = document.getElementById('screen-start');
 const screenGame = document.getElementById('screen-game');
 const screenDeploy = document.getElementById('screen-deploy');
 const statsEl = document.getElementById('stats');
+const presetStatsEl = document.getElementById('preset-stats');
 const finalScoreEl = document.getElementById('final-score');
 const bestScoreEl = document.getElementById('best-score');
 const battleStatusEl = document.getElementById('battle-status');
@@ -161,6 +173,7 @@ const mpStatusEl = document.getElementById('mp-status');
 const mpLeaveBtn = document.getElementById('mp-leave');
 const mpStartBtn = document.getElementById('mp-start');
 const pad = document.getElementById('pad');
+const leaveGameBtn = document.getElementById('leave-game');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
 const resultOverlay = document.getElementById('result-overlay');
@@ -264,6 +277,8 @@ let activeStartTab = 'single';
 let activeMpTab = 'create';
 // 0 = create, 1 = join, 2 = public
 let mpTypeToggle = 2;
+let bestScoreUpdatedAt = null;
+let lastPresetSelectedAt = null;
 
 let padCtx = null;
 let padDrawing = false;
@@ -298,13 +313,23 @@ let multiplayer = {
   eliminated: false,
   winnerId: null,
   playerName: null,
+  isSpectator: false,
+  settingsLocked: false,
   timeLeft: 0,
   nextCutIn: 0,
   lastRoomId: null,
   seed: null,
   problemIndex: 0,
+  targetIndex: 0,
+  reconnectToken: null,
   ws: null
 };
+
+try {
+  multiplayer.reconnectToken = localStorage.getItem(RECONNECT_TOKEN_KEY);
+} catch {
+  multiplayer.reconnectToken = null;
+}
 
 const dvdBoxes = [];
 let dvdAnimActive = false;
@@ -353,6 +378,93 @@ function factorial(n) {
   return out;
 }
 
+function formatDateTime(date) {
+  if (!date) return '';
+  return date.toLocaleString();
+}
+
+function updateBestScoreTitle() {
+  if (!bestScoreEl) return;
+  const time = formatDateTime(bestScoreUpdatedAt);
+  bestScoreEl.title = time ? `best score updated: ${time}` : 'best score';
+}
+
+function updateRankDisplay(placement, total) {
+  if (!rankValueEl) return;
+  const value = placement ? `${placement}${total ? `/${total}` : ''}` : '-';
+  rankValueEl.textContent = value;
+  const time = formatDateTime(new Date());
+  rankValueEl.title = placement ? `rank updated: ${time}` : 'rank';
+}
+
+function presetLabel(presetKey) {
+  const preset = PRESETS[presetKey];
+  if (!preset) return 'custom settings';
+  const sym = preset.symmetric ? 'symmetric' : 'not symmetric';
+  return `${preset.timeLimit}s · ${preset.sizeMin}x${preset.sizeMax} · |λ|≤${preset.range} · ${sym}`;
+}
+
+function applyPresetTooltips() {
+  if (presetGrid) {
+    presetGrid.querySelectorAll('.preset').forEach((btn) => {
+      const key = btn.dataset.preset;
+      btn.title = key === 'custom' ? 'custom settings' : presetLabel(key);
+    });
+  }
+  if (mpPresetGrid) {
+    mpPresetGrid.querySelectorAll('.preset').forEach((btn) => {
+      const key = btn.dataset.preset;
+      btn.title = key === 'custom' ? 'custom settings' : presetLabel(key);
+    });
+  }
+}
+
+function updatePresetHoverTime(scope = 'single') {
+  const grid = scope === 'single' ? presetGrid : mpPresetGrid;
+  if (!grid) return;
+  const active = grid.querySelector('.preset.active');
+  if (!active) return;
+  const base = active.dataset.preset === 'custom' ? 'custom settings' : presetLabel(active.dataset.preset);
+  const time = formatDateTime(lastPresetSelectedAt);
+  active.title = time ? `${base} · selected ${time}` : base;
+}
+
+function loadPresetStats() {
+  try {
+    const raw = localStorage.getItem('preset_stats');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePresetStats(data) {
+  try {
+    localStorage.setItem('preset_stats', JSON.stringify(data));
+  } catch {
+    // ignore
+  }
+}
+
+function updatePresetStatsDisplay() {
+  if (!presetStatsEl) return;
+  const key = resolvePresetKey(settings, activeStartTab === 'multi' ? selectedPresetMulti : selectedPresetSingle);
+  if (!key) {
+    presetStatsEl.style.display = 'none';
+    return;
+  }
+  const mode = settings.mode || 'classic';
+  const stats = loadPresetStats();
+  const entry = stats[`${mode}:${key}`];
+  if (!entry) {
+    presetStatsEl.style.display = 'none';
+    return;
+  }
+  const avg = entry.attempts ? (entry.totalScore / entry.attempts).toFixed(1) : '0.0';
+  presetStatsEl.style.display = 'block';
+  presetStatsEl.textContent = `${key} ${mode} · best ${entry.best} · avg ${avg} · attempts ${entry.attempts}`;
+}
+
 async function ensureAuth() {
   if (!API_BASE_URL) return null;
   if (auth) return auth;
@@ -376,6 +488,8 @@ async function refreshAuthStats() {
   if (typeof data.bestScore === 'number') {
     bestScore = data.bestScore;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+    bestScoreUpdatedAt = new Date();
+    updateBestScoreTitle();
   }
   if (typeof data.power === 'number') {
     powerScore = data.power;
@@ -399,6 +513,8 @@ async function submitSolve(dimension, solveSeconds, dimensionScore) {
     if (typeof data.bestScore === 'number') {
       bestScore = Math.max(bestScore, data.bestScore);
       if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+      bestScoreUpdatedAt = new Date();
+      updateBestScoreTitle();
     }
     if (typeof data.power === 'number') {
       powerScore = data.power;
@@ -448,20 +564,22 @@ async function submitResult() {
   });
 }
 
-async function fetchPowerLeaderboard() {
+async function fetchLeaderboard() {
   if (!API_BASE_URL || !powerListEl) return;
+  const mode = leaderboardModeEl?.value || 'classic';
+  const preset = leaderboardPresetEl?.value || 'p2';
   powerListEl.innerHTML = '<li>loading...</li>';
-  const res = await fetch(`${API_BASE_URL}/power-leaderboard`);
+  const res = await fetch(`${API_BASE_URL}/leaderboard?mode=${mode}&preset=${preset}`);
   if (!res.ok) {
     powerListEl.innerHTML = '<li>failed to load</li>';
     return;
   }
   const data = await res.json();
   powerListEl.innerHTML = '';
-  data.items.forEach((row, idx) => {
+  (data.items || []).forEach((row, idx) => {
     const li = document.createElement('li');
     li.className = 'leaderboard-item';
-    li.innerHTML = `<span class="leaderboard-rank">${idx + 1}</span><span class="leaderboard-name">${row.username}</span><span class="leaderboard-score">${row.power.toFixed(2)}</span>`;
+    li.innerHTML = `<span class="leaderboard-rank">${idx + 1}</span><span class="leaderboard-name">${row.username}</span><span class="leaderboard-score">${row.score}</span>`;
     powerListEl.appendChild(li);
   });
 }
@@ -697,6 +815,25 @@ function renderMultiplayerPlayers(players) {
   });
 }
 
+function storeReconnectToken(token) {
+  if (!token) return;
+  multiplayer.reconnectToken = token;
+  try {
+    localStorage.setItem(RECONNECT_TOKEN_KEY, token);
+  } catch {
+    // ignore
+  }
+}
+
+function clearReconnectToken() {
+  multiplayer.reconnectToken = null;
+  try {
+    localStorage.removeItem(RECONNECT_TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function sendWsMessage(payload) {
   if (!multiplayer.ws || multiplayer.ws.readyState !== 1) return;
   multiplayer.ws.send(JSON.stringify(payload));
@@ -711,7 +848,7 @@ function sendWsWhenReady(payload) {
   }
 }
 
-function resetMultiplayerState() {
+function resetMultiplayerState({ clearToken = false } = {}) {
   multiplayer.inRoom = false;
   multiplayer.isHost = false;
   multiplayer.started = false;
@@ -728,6 +865,9 @@ function resetMultiplayerState() {
   multiplayer.lastRoomId = null;
   setMultiplayerStatus('');
   setRoomStatus('');
+  multiplayer.problemIndex = 0;
+  multiplayer.targetIndex = 0;
+  if (clearToken) clearReconnectToken();
   if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
   if (mpCreateBtn) mpCreateBtn.classList.remove('hidden');
   if (mpStartBtn) mpStartBtn.classList.add('hidden');
@@ -748,6 +888,20 @@ function handleWsMessage(data) {
     renderPublicRooms(data.rooms || []);
     return;
   }
+  if (data.type === 'room:token') {
+    storeReconnectToken(data.token);
+    return;
+  }
+  if (data.type === 'room:sync') {
+    if (typeof data.seed === 'string') multiplayer.seed = data.seed;
+    if (Number.isFinite(data.problemIndex)) multiplayer.problemIndex = Number(data.problemIndex);
+    if (Number.isFinite(data.targetIndex)) multiplayer.targetIndex = Number(data.targetIndex);
+    if (gameActive && multiplayer.enabled) {
+      const { matrix, eigenvalues } = generateProblem();
+      renderProblem(matrix, eigenvalues);
+    }
+    return;
+  }
   if (data.type === 'room:state') {
     multiplayer.enabled = true;
     setStartTab('multi');
@@ -761,8 +915,9 @@ function handleWsMessage(data) {
     multiplayer.isHost = data.room.hostId === wsClientId;
     multiplayer.started = data.room.started;
     if (!wasInRoom || prevRoomId !== data.room.id) {
-      multiplayer.problemIndex = 0;
+      multiplayer.problemIndex = Number(data.room.problemIndex ?? 0);
     }
+    multiplayer.targetIndex = Number(data.room.problemIndex ?? multiplayer.targetIndex ?? 0);
     if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
     if (mpCreateBtn) mpCreateBtn.classList.add('hidden');
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
@@ -784,6 +939,8 @@ function handleWsMessage(data) {
     multiplayer.placement = data.placement || 0;
     multiplayer.eliminated = data.eliminated || false;
     multiplayer.winnerId = data.winnerId || null;
+    if (Number.isFinite(data.problemIndex)) multiplayer.problemIndex = Number(data.problemIndex);
+    if (Number.isFinite(data.targetIndex)) multiplayer.targetIndex = Number(data.targetIndex);
     updateStartButtonLabel();
     if (!gameActive) {
       settings = { ...data.settings };
@@ -827,6 +984,9 @@ function ensureMultiplayerSocket() {
   multiplayer.ws.addEventListener('open', () => {
     multiplayer.connected = true;
     console.log('[mp] ws open');
+    if (multiplayer.reconnectToken) {
+      sendWsMessage({ type: 'room:reconnect', token: multiplayer.reconnectToken });
+    }
     updateStartButtonLabel();
   });
   multiplayer.ws.addEventListener('message', (event) => {
@@ -900,7 +1060,7 @@ function handleMultiplayerLeave() {
   console.log('[mp] leave click');
   if (!multiplayer.ws || !multiplayer.inRoom) return;
   sendWsMessage({ type: 'room:leave' });
-  resetMultiplayerState();
+  resetMultiplayerState({ clearToken: true });
   showStartScreen();
 }
 
@@ -955,6 +1115,8 @@ async function handleSignup() {
   setAuth({ username, password });
   bestScore = 0;
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+  bestScoreUpdatedAt = new Date();
+  updateBestScoreTitle();
   if (authStatusEl) authStatusEl.textContent = `account created: ${username}`;
 }
 
@@ -983,6 +1145,8 @@ async function handleLogin() {
   if (typeof data.bestScore === 'number') {
     bestScore = data.bestScore;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+    bestScoreUpdatedAt = new Date();
+    updateBestScoreTitle();
   }
   if (typeof data.power === 'number') {
     powerScore = data.power;
@@ -993,6 +1157,10 @@ async function handleLogin() {
 
 function handleLogout() {
   setAuth(null);
+  bestScore = 0;
+  if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+  bestScoreUpdatedAt = null;
+  updateBestScoreTitle();
 }
 
 function shuffle(arr, rng = Math.random) {
@@ -1179,16 +1347,18 @@ function handleInput(index) {
     dimensionScores[dimKey] = (dimensionScores[dimKey] || 0) + 1;
     submitSolve(currentMatrixSize, solveSeconds, dimensionScores[dimKey]);
     if (multiplayer.enabled && multiplayer.inRoom && multiplayer.started) {
+      const reportedIndex = multiplayer.problemIndex;
       sendWsMessage({
         type: 'game:score',
         score,
         dimension: currentMatrixSize,
-        solveSeconds
+        solveSeconds,
+        problemIndex: reportedIndex
       });
     }
     feedbackEl.textContent = 'Correct!';
     feedbackEl.className = 'feedback success';
-    nextProblem();
+    nextProblem({ advanceIndex: multiplayer.enabled });
     spawnDvdBox();
     if (battle.active) {
       updateBattleStatus();
@@ -1196,9 +1366,7 @@ function handleInput(index) {
   }
 }
 
-function nextProblem() {
-  const { matrix, eigenvalues } = generateProblem();
-  multiplayer.problemIndex += 1;
+function renderProblem(matrix, eigenvalues) {
   currentEigenvalues = eigenvalues;
   currentMatrixSize = matrix.length;
   problemStartTime = Date.now();
@@ -1218,6 +1386,14 @@ function nextProblem() {
   feedbackEl.textContent = '';
   feedbackEl.className = 'feedback';
   focusInput(0);
+}
+
+function nextProblem({ advanceIndex = true } = {}) {
+  if (multiplayer.enabled && advanceIndex) {
+    multiplayer.problemIndex += 1;
+  }
+  const { matrix, eigenvalues } = generateProblem();
+  renderProblem(matrix, eigenvalues);
 }
 
 function resizePad() {
@@ -1692,8 +1868,9 @@ function startGame(options = {}) {
 
   score = 0;
   dimensionScores = {};
-  if (multiplayer.enabled) {
+  if (!fromMultiplayer) {
     multiplayer.problemIndex = 0;
+    multiplayer.targetIndex = 0;
   }
   timeLeft = timeLeftOverride ?? (settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit);
   scoreEl.textContent = score;
@@ -1719,7 +1896,7 @@ function startGame(options = {}) {
   clearDvdBoxes();
   dvdThrottleThreshold = 8;
   spawnDvdBox();
-  nextProblem();
+  nextProblem({ advanceIndex: false });
   focusInput(0);
 
   if (timer) clearInterval(timer);
@@ -1884,7 +2061,12 @@ const setPowerModalOpen = async (isOpen) => {
   if (isOpen) {
     powerModalEl.classList.remove('hidden');
     powerModalEl.style.display = 'grid';
-    await fetchPowerLeaderboard();
+    if (leaderboardModeEl) leaderboardModeEl.value = settings.mode;
+    if (leaderboardPresetEl) {
+      const presetFallback = activeStartTab === 'multi' ? selectedPresetMulti : selectedPresetSingle;
+      leaderboardPresetEl.value = resolvePresetKey(settings, presetFallback);
+    }
+    await fetchLeaderboard();
   } else {
     powerModalEl.classList.add('hidden');
     powerModalEl.style.display = 'none';
@@ -1894,6 +2076,11 @@ if (powerToggleBtn && powerModalEl) {
   powerToggleBtn.addEventListener('click', async () => {
     const isOpen = powerModalEl.classList.contains('hidden');
     await setPowerModalOpen(isOpen);
+  });
+}
+if (leaderboardRefreshBtn) {
+  leaderboardRefreshBtn.addEventListener('click', () => {
+    fetchLeaderboard();
   });
 }
 if (powerCloseBtn && powerModalEl) {

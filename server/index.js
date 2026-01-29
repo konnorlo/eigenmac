@@ -39,6 +39,8 @@ const DIFFICULTY_PARAMS = {
 
 const rooms = new Map();
 const clients = new Map();
+const reconnectTokens = new Map();
+const rateBuckets = new Map();
 
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randNormal = (mean, std) => {
@@ -72,6 +74,36 @@ const ensureName = (name) => {
   const trimmed = typeof name === 'string' ? name.trim() : '';
   if (trimmed) return trimmed;
   return `guest_${randInt(1000, 9999)}`;
+};
+
+const issueReconnectToken = (clientId, roomId, name) => {
+  const token = crypto.randomBytes(16).toString('hex');
+  reconnectTokens.set(token, {
+    roomId,
+    playerId: clientId,
+    name,
+    lastSeen: Date.now()
+  });
+  const client = clients.get(clientId);
+  if (client) {
+    client.token = token;
+  }
+  return token;
+};
+
+const rateLimit = ({ windowMs, max }) => (req, res, next) => {
+  const key = `${req.ip}:${req.path}`;
+  const now = Date.now();
+  const entry = rateBuckets.get(key);
+  if (!entry || now - entry.start > windowMs) {
+    rateBuckets.set(key, { start: now, count: 1 });
+    return next();
+  }
+  entry.count += 1;
+  if (entry.count > max) {
+    return res.status(429).json({ error: 'rate_limited' });
+  }
+  return next();
 };
 
 const averageSizeFactor = (settings) => {
@@ -128,7 +160,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/signup', async (req, res) => {
+app.post('/signup', rateLimit({ windowMs: 60_000, max: 8 }), async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
 
@@ -144,7 +176,7 @@ app.post('/signup', async (req, res) => {
   res.json({ id: user.id, username: user.username });
 });
 
-app.post('/login', async (req, res) => {
+app.post('/login', rateLimit({ windowMs: 60_000, max: 15 }), async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
 
@@ -182,7 +214,7 @@ app.post('/login', async (req, res) => {
   });
 });
 
-app.post('/solve', async (req, res) => {
+app.post('/solve', rateLimit({ windowMs: 60_000, max: 120 }), async (req, res) => {
   const parsed = solveSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
 
@@ -263,7 +295,7 @@ app.post('/solve', async (req, res) => {
   res.json({ ...updated, bestScore: bestOverall._max.bestScore ?? newBest, power });
 });
 
-app.post('/results', async (req, res) => {
+app.post('/results', rateLimit({ windowMs: 60_000, max: 60 }), async (req, res) => {
   const parsed = resultSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
 
@@ -283,7 +315,7 @@ app.post('/results', async (req, res) => {
   res.json({ id: created.id });
 });
 
-app.get('/leaderboard', async (req, res) => {
+app.get('/leaderboard', rateLimit({ windowMs: 60_000, max: 120 }), async (req, res) => {
   const mode = req.query.mode === 'battle' ? 'battle' : 'classic';
   const preset = typeof req.query.preset === 'string' ? req.query.preset : 'p2';
   const items = await prisma.gameResult.findMany({
@@ -391,7 +423,7 @@ const broadcast = (room, payload) => {
 };
 
 const getParticipants = (room) => {
-  const players = Array.from(room.players.values());
+  const players = Array.from(room.players.values()).filter((p) => !p.isSpectator);
   return [...players, ...room.bots];
 };
 
@@ -439,24 +471,34 @@ const updateBots = (room) => {
 const sendRoomState = (room) => {
   const playersList = Array.from(room.players.values()).map((p) => ({
     name: p.name,
-    isHost: p.id === room.hostId
+    isHost: p.id === room.hostId,
+    isSpectator: Boolean(p.isSpectator)
   }));
-  const payload = {
-    type: 'room:state',
-    room: {
-      id: room.id,
-      mode: room.mode,
-      settings: room.settings,
-      started: room.started,
-      hostId: room.hostId,
-      players: room.players.size,
-      maxPlayers: room.maxPlayers,
-      displayName: room.displayName,
-      seed: room.seed,
-      playersList
-    }
-  };
-  broadcast(room, payload);
+  room.players.forEach((player) => {
+    const client = clients.get(player.id);
+    if (!client?.ws) return;
+    send(client.ws, {
+      type: 'room:state',
+      room: {
+        id: room.id,
+        mode: room.mode,
+        settings: room.settings,
+        settingsLocked: Boolean(room.settingsLocked),
+        started: room.started,
+        hostId: room.hostId,
+        players: room.players.size,
+        maxPlayers: room.maxPlayers,
+        displayName: room.displayName,
+        seed: room.seed,
+        problemIndex: room.problemIndex,
+        playersList,
+        chat: room.chat || []
+      },
+      you: {
+        isSpectator: Boolean(player.isSpectator)
+      }
+    });
+  });
 };
 
 const sendRoomTick = (room) => {
@@ -478,6 +520,8 @@ const sendRoomTick = (room) => {
       placement,
       status,
       settings: room.settings,
+      problemIndex: player.problemIndex ?? 0,
+      targetIndex: room.problemIndex,
       roomMode: room.mode,
       winnerId: room.winnerId || null,
       eliminated: !player.alive
@@ -530,6 +574,20 @@ const startRoom = (room) => {
 
 const cleanupRooms = () => {
   const now = Date.now();
+  reconnectTokens.forEach((entry, token) => {
+    if (now - entry.lastSeen > ROOM_TTL_MS) {
+      const room = rooms.get(entry.roomId);
+      if (room && room.players.has(entry.playerId)) {
+        room.players.delete(entry.playerId);
+        if (room.hostId === entry.playerId) {
+          const nextHost = room.players.keys().next().value;
+          room.hostId = nextHost || null;
+        }
+        room.lastActivity = Date.now();
+      }
+      reconnectTokens.delete(token);
+    }
+  });
   rooms.forEach((room, roomId) => {
     if (room.players.size === 0) {
       if (room.interval) clearInterval(room.interval);
@@ -553,7 +611,7 @@ const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (ws) => {
   const clientId = crypto.randomUUID();
-  clients.set(clientId, { ws, roomId: null });
+  clients.set(clientId, { ws, roomId: null, token: null });
   send(ws, { type: 'hello', clientId });
 
   ws.on('message', (raw) => {
@@ -566,6 +624,54 @@ wss.on('connection', (ws) => {
     if (!msg?.type) return;
     const client = clients.get(clientId);
     if (!client) return;
+
+    if (msg.type === 'room:reconnect') {
+      const token = typeof msg.token === 'string' ? msg.token : '';
+      const entry = reconnectTokens.get(token);
+      if (!entry) {
+        send(ws, { type: 'room:error', message: 'reconnect failed' });
+        return;
+      }
+      const room = rooms.get(entry.roomId);
+      if (!room) {
+        reconnectTokens.delete(token);
+        send(ws, { type: 'room:error', message: 'room not found' });
+        return;
+      }
+      const oldId = entry.playerId;
+      const existing = room.players.get(oldId);
+      if (existing) {
+        room.players.delete(oldId);
+        room.players.set(clientId, { ...existing, id: clientId, connected: true });
+        if (room.hostId === oldId) {
+          room.hostId = clientId;
+        }
+      } else {
+        room.players.set(clientId, {
+          id: clientId,
+          name: ensureName(entry.name),
+          score: 0,
+          alive: true,
+          lastScoreTime: 0,
+          problemIndex: room.problemIndex,
+          connected: true,
+          isSpectator: false,
+          isBot: false
+        });
+      }
+      entry.playerId = clientId;
+      entry.lastSeen = Date.now();
+      const clientRef = clients.get(clientId);
+      if (clientRef) {
+        clientRef.roomId = room.id;
+        clientRef.token = token;
+      }
+      room.lastActivity = Date.now();
+      send(ws, { type: 'room:token', token });
+      sendRoomState(room);
+      sendRoomTick(room);
+      return;
+    }
 
     if (msg.type === 'room:list') {
       send(ws, { type: 'room:list', rooms: listPublicRooms() });
@@ -593,6 +699,7 @@ wss.on('connection', (ws) => {
         id,
         mode,
         settings,
+        settingsLocked: false,
         hostId: clientId,
         isPublic: !password,
         password,
@@ -600,6 +707,7 @@ wss.on('connection', (ws) => {
         seed: crypto.randomUUID(),
         players: new Map(),
         bots: [],
+        chat: [],
         maxPlayers: MAX_PLAYERS,
         createdAt: Date.now(),
         started: false,
@@ -609,6 +717,7 @@ wss.on('connection', (ws) => {
         timeLeft: 0,
         interval: null,
         winnerId: null,
+        problemIndex: 0,
         lastActivity: Date.now()
       };
       room.players.set(clientId, {
@@ -617,11 +726,16 @@ wss.on('connection', (ws) => {
         score: 0,
         alive: true,
         lastScoreTime: 0,
+        problemIndex: room.problemIndex,
+        connected: true,
+        isSpectator: false,
         isBot: false
       });
       rooms.set(id, room);
       client.roomId = id;
       room.lastActivity = Date.now();
+      const token = issueReconnectToken(clientId, id, room.players.get(clientId).name);
+      send(ws, { type: 'room:token', token });
       syncBots(room);
       sendRoomState(room);
       return;
@@ -633,7 +747,8 @@ wss.on('connection', (ws) => {
         send(ws, { type: 'room:error', message: 'room not found' });
         return;
       }
-      if (room.started) {
+      const spectate = Boolean(msg.spectate);
+      if (room.started && !spectate) {
         send(ws, { type: 'room:error', message: 'match already started' });
         return;
       }
@@ -649,12 +764,17 @@ wss.on('connection', (ws) => {
         id: clientId,
         name: ensureName(msg.name),
         score: 0,
-        alive: true,
+        alive: !spectate,
         lastScoreTime: 0,
+        problemIndex: room.problemIndex,
+        connected: true,
+        isSpectator: spectate,
         isBot: false
       });
       client.roomId = room.id;
       room.lastActivity = Date.now();
+      const token = issueReconnectToken(clientId, room.id, room.players.get(clientId).name);
+      send(ws, { type: 'room:token', token });
       syncBots(room);
       sendRoomState(room);
       return;
@@ -678,8 +798,65 @@ wss.on('connection', (ws) => {
             sendRoomState(room);
           }
         }
+        if (client.token) {
+          reconnectTokens.delete(client.token);
+          client.token = null;
+        }
         client.roomId = null;
       }
+      return;
+    }
+
+    if (msg.type === 'room:update-settings') {
+      const room = rooms.get(client.roomId);
+      if (!room || room.hostId !== clientId) return;
+      if (room.started || room.settingsLocked) return;
+      const incoming = msg.settings || {};
+      room.settings = {
+        timeLimit: Number(incoming.timeLimit ?? room.settings.timeLimit ?? 120),
+        range: Number(incoming.range ?? room.settings.range ?? 6),
+        symmetric: Boolean(incoming.symmetric ?? room.settings.symmetric),
+        sizeMin: Number(incoming.sizeMin ?? room.settings.sizeMin ?? 2),
+        sizeMax: Number(incoming.sizeMax ?? room.settings.sizeMax ?? 3),
+        difficulty: incoming.difficulty ?? room.settings.difficulty ?? 'medium'
+      };
+      room.mode = msg.mode === 'battle' ? 'battle' : room.mode === 'battle' ? 'battle' : 'classic';
+      room.seed = crypto.randomUUID();
+      room.problemIndex = 0;
+      room.players.forEach((player) => {
+        player.problemIndex = 0;
+      });
+      room.lastActivity = Date.now();
+      sendRoomState(room);
+      return;
+    }
+
+    if (msg.type === 'room:lock') {
+      const room = rooms.get(client.roomId);
+      if (!room || room.hostId !== clientId) return;
+      room.settingsLocked = Boolean(msg.locked);
+      room.lastActivity = Date.now();
+      sendRoomState(room);
+      return;
+    }
+
+    if (msg.type === 'room:chat') {
+      const room = rooms.get(client.roomId);
+      if (!room) return;
+      const player = room.players.get(clientId);
+      if (!player) return;
+      const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+      if (!text) return;
+      const entry = {
+        name: player.name,
+        text: text.slice(0, 200),
+        ts: Date.now()
+      };
+      room.chat = room.chat || [];
+      room.chat.push(entry);
+      if (room.chat.length > 50) room.chat.shift();
+      room.lastActivity = Date.now();
+      broadcast(room, { type: 'room:chat', message: entry, chat: room.chat });
       return;
     }
 
@@ -687,6 +864,10 @@ wss.on('connection', (ws) => {
       const room = rooms.get(client.roomId);
       if (!room || room.hostId !== clientId) return;
       room.winnerId = null;
+      room.problemIndex = 0;
+      room.players.forEach((player) => {
+        player.problemIndex = 0;
+      });
       room.lastActivity = Date.now();
       startRoom(room);
       return;
@@ -696,12 +877,24 @@ wss.on('connection', (ws) => {
       const room = rooms.get(client.roomId);
       if (!room || !room.started) return;
       const player = room.players.get(clientId);
-      if (!player || !player.alive) return;
+      if (!player || !player.alive || player.isSpectator) return;
       room.lastActivity = Date.now();
+      const reportedIndex = Number(msg.problemIndex ?? -1);
+      if (reportedIndex !== player.problemIndex) {
+        send(client.ws, {
+          type: 'room:sync',
+          problemIndex: player.problemIndex,
+          targetIndex: room.problemIndex,
+          seed: room.seed
+        });
+        return;
+      }
       const nextScore = Math.max(player.score, Number(msg.score || 0));
       if (nextScore !== player.score) {
         player.score = nextScore;
         player.lastScoreTime = room.t;
+        player.problemIndex += 1;
+        room.problemIndex = Math.max(room.problemIndex, player.problemIndex);
         sendRoomTick(room);
       }
     }
@@ -712,12 +905,20 @@ wss.on('connection', (ws) => {
     if (client?.roomId) {
       const room = rooms.get(client.roomId);
       if (room) {
-        room.players.delete(clientId);
-        room.lastActivity = Date.now();
-        if (room.hostId === clientId) {
-          const nextHost = room.players.keys().next().value;
-          room.hostId = nextHost || null;
+        const player = room.players.get(clientId);
+        const token = client.token;
+        if (token && reconnectTokens.has(token) && player) {
+          player.connected = false;
+          const entry = reconnectTokens.get(token);
+          if (entry) entry.lastSeen = Date.now();
+        } else {
+          room.players.delete(clientId);
+          if (room.hostId === clientId) {
+            const nextHost = room.players.keys().next().value;
+            room.hostId = nextHost || null;
+          }
         }
+        room.lastActivity = Date.now();
         if (room.players.size === 0) {
           if (room.interval) clearInterval(room.interval);
           rooms.delete(room.id);
