@@ -1154,7 +1154,12 @@ function handleWsMessage(data) {
     return;
   }
   if (data.type === 'room:error') {
-    setMultiplayerStatus(data.message || 'multiplayer error');
+    const msg = (data.message || '').toLowerCase();
+    if (msg.includes('wrong password') || msg.includes('incorrect password')) {
+      setMultiplayerStatus('incorrect password');
+    } else {
+      setMultiplayerStatus(data.message || 'multiplayer error');
+    }
     setMpLoading(false);
     return;
   }
