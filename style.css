@@ -1,5 +1,5 @@
 :root {
-  --bg: #2A1B2E;
+  /*--bg: #2A1B2E;
   --card: #D6CDB8;
   --text: #A7B7A1;
   --muted: #D6CDB8;
@@ -10,7 +10,19 @@
   --border: #0E0C10;
   --border-soft: rgba(14, 12, 16, 0.55);
   --accent: #C8A44D;
-  --accent-soft: #A7B7A1;
+  --accent-soft: #A7B7A1;*/
+  --bg: #2A1B2E;
+  --card: #2A1B2E;/*#0E0C10*/
+  --text: #a460b7;
+  --muted: #D6CDB8;
+  --text-soft: #9e6fa9;
+  --text-strong: #b097ce;
+  --danger: #7A2E2E;
+  --success: #351f3b;
+  --border: rgba(226, 196, 255, 0.25);
+  --border-soft: rgba(225, 195, 255, 0.18);
+  --accent: #363239;/*#A7B7A1*/
+  --accent-soft: #351f3b;
 }
 
 * {
@@ -77,14 +89,14 @@ button {
   left: 18px;
   top: 18px;
   z-index: 4;
-  background: var(--card);
+  background: rgba(42, 28, 57, 0.72);
   border: 2px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  width: 440px;
+  width: 220px;
   display: grid;
   gap: 8px;
-  transform: scale(0.5);
+  transform: scale(0.75);
   transform-origin: top left;
 }
 
@@ -258,7 +270,7 @@ button {
 }
 
 #screen-start .card {
-  background: rgba(214, 205, 184, 0.92);
+  background: rgba(42, 28, 57, 0.72);
   width: min(92vw, 620px);
 }
 
@@ -351,8 +363,8 @@ button {
 }
 
 .primary {
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--card);
+  color: var(--text);
 }
 
 .ghost {

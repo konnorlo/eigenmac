@@ -1,4 +1,5 @@
 // DVD logo settings
+const ENABLE_DVDS = false;
 const DVD_SPEED_X = 16;
 const DVD_SPEED_Y = 14;
 const DVD_WIDTH = 420;
@@ -346,6 +347,7 @@ function clearDvdBoxes() {
 }
 
 function showStaticDvd() {
+  if (!ENABLE_DVDS) return;
   if (!dvdTemplate) return;
   dvdTemplate.style.display = 'block';
   dvdTemplate.style.opacity = `${DVD_OPACITY}`;
@@ -1614,10 +1616,10 @@ function resizePad() {
   padCtx = pad.getContext('2d');
   padCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   padCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-  padCtx.lineWidth = 2;
+  padCtx.lineWidth = 7;
   padCtx.lineJoin = 'round';
   padCtx.lineCap = 'round';
-  padCtx.strokeStyle = '#111111';
+  padCtx.strokeStyle = '#e8d6ff';
   padLabelDrawn = false;
   if (resultBackgroundImg) {
     drawResultBackground(resultBackgroundImg);
@@ -1884,6 +1886,7 @@ function tickBattle() {
 }
 
 function spawnDvdBox() {
+  if (!ENABLE_DVDS) return;
   if (!dvdTemplate) return;
   const usePaircraft = Math.random() < PAIRCRAFT_CHANCE;
   const baseSpeed = Math.hypot(DVD_SPEED_X, DVD_SPEED_Y) || 1;
@@ -2017,6 +2020,10 @@ function handleBoxCollisions() {
 }
 
 function animateDvds() {
+  if (!ENABLE_DVDS) {
+    dvdAnimActive = false;
+    return;
+  }
   dvdBoxes.forEach((box) => {
     if (box.phase === 'recover') {
       box.speedMultiplier = Math.min(1, box.speedMultiplier + DVD_ACCEL_RATE * 2);
@@ -2427,6 +2434,7 @@ window.addEventListener('load', () => {
   resizePad();
   resizeConfetti();
   showStaticDvd();
+  if (!ENABLE_DVDS) hideStaticDvd();
   if (pad) {
     document.addEventListener('mousedown', startPadDraw);
     document.addEventListener('mousemove', drawPad);
