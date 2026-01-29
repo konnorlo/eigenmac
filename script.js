@@ -465,6 +465,92 @@ function updatePresetStatsDisplay() {
   presetStatsEl.textContent = `${key} ${mode} · best ${entry.best} · avg ${avg} · attempts ${entry.attempts}`;
 }
 
+function recordPresetResult(mode, presetKey, scoreValue) {
+  if (!presetKey) return;
+  const stats = loadPresetStats();
+  const key = `${mode}:${presetKey}`;
+  const entry = stats[key] || { attempts: 0, totalScore: 0, best: 0 };
+  entry.attempts += 1;
+  entry.totalScore += scoreValue;
+  entry.best = Math.max(entry.best || 0, scoreValue);
+  entry.updatedAt = new Date().toISOString();
+  stats[key] = entry;
+  savePresetStats(stats);
+}
+
+function applyRoomSettings(room) {
+  if (!room?.settings) return;
+  const incoming = room.settings;
+  if (mpTimeLimitInput) mpTimeLimitInput.value = incoming.timeLimit;
+  if (mpRangeInput) mpRangeInput.value = incoming.range;
+  if (mpSymmetricInput) mpSymmetricInput.value = incoming.symmetric ? 'yes' : 'no';
+  if (mpSizeMinInput) mpSizeMinInput.value = incoming.sizeMin;
+  if (mpSizeMaxInput) mpSizeMaxInput.value = incoming.sizeMax;
+  if (mpModeInput) mpModeInput.value = room.mode || 'classic';
+  if (mpDifficultyInput && incoming.difficulty) mpDifficultyInput.value = incoming.difficulty;
+  if (mpDifficultyWrap) mpDifficultyWrap.classList.toggle('hidden', mpModeInput?.value !== 'battle');
+  const presetKey = resolvePresetKey(incoming, selectedPresetMulti) || 'custom';
+  selectedPresetMulti = presetKey;
+  setPresetButtons(mpPresetGrid, presetKey);
+  if (mpCustomSettingsEl) mpCustomSettingsEl.classList.toggle('hidden', presetKey !== 'custom');
+}
+
+function updateMpSettingsControls() {
+  const isEditable = multiplayer.inRoom && multiplayer.isHost && !multiplayer.settingsLocked && !multiplayer.started;
+  const shouldDisable = !isEditable;
+  [mpTimeLimitInput, mpRangeInput, mpSizeMinInput, mpSizeMaxInput, mpSymmetricInput, mpModeInput, mpDifficultyInput]
+    .filter(Boolean)
+    .forEach((el) => {
+      el.disabled = shouldDisable;
+    });
+  if (mpPresetGrid) {
+    mpPresetGrid.querySelectorAll('.preset').forEach((btn) => {
+      btn.disabled = shouldDisable;
+    });
+  }
+  if (mpLockBtn) {
+    mpLockBtn.classList.toggle('hidden', !multiplayer.inRoom || !multiplayer.isHost);
+    mpLockBtn.textContent = multiplayer.settingsLocked ? 'unlock settings' : 'lock settings';
+    mpLockBtn.disabled = multiplayer.started;
+  }
+  if (mpLockStatusEl) {
+    mpLockStatusEl.textContent = multiplayer.settingsLocked ? 'settings locked by host' : 'settings unlocked';
+  }
+}
+
+function broadcastRoomSettingsUpdate() {
+  if (!multiplayer.inRoom || !multiplayer.isHost || multiplayer.settingsLocked || multiplayer.started) return;
+  if (mpDifficultyWrap) mpDifficultyWrap.classList.toggle('hidden', mpModeInput?.value !== 'battle');
+  const payload = {
+    type: 'room:update-settings',
+    mode: mpModeInput?.value || 'classic',
+    settings: {
+      timeLimit: Number(mpTimeLimitInput?.value || 120),
+      range: Number(mpRangeInput?.value || 6),
+      symmetric: mpSymmetricInput?.value === 'yes',
+      sizeMin: Number(mpSizeMinInput?.value || 2),
+      sizeMax: Number(mpSizeMaxInput?.value || 3),
+      difficulty: mpDifficultyInput?.value || DEFAULT_DIFFICULTY
+    }
+  };
+  sendWsMessage(payload);
+}
+
+function renderChatLog(chat) {
+  if (!mpChatLogEl) return;
+  mpChatLogEl.innerHTML = '';
+  (chat || []).forEach((message) => appendChatMessage(message));
+}
+
+function appendChatMessage(message) {
+  if (!mpChatLogEl || !message) return;
+  const row = document.createElement('div');
+  const ts = message.ts ? new Date(message.ts).toLocaleTimeString() : '';
+  row.textContent = `${message.name}${ts ? ` · ${ts}` : ''}: ${message.text}`;
+  mpChatLogEl.appendChild(row);
+  mpChatLogEl.scrollTop = mpChatLogEl.scrollHeight;
+}
+
 async function ensureAuth() {
   if (!API_BASE_URL) return null;
   if (auth) return auth;
@@ -739,17 +825,22 @@ function setMpTab(tab) {
 }
 
 function selectPreset(presetKey, scope = 'single') {
+  lastPresetSelectedAt = new Date();
   if (scope === 'single') {
     selectedPresetSingle = presetKey;
     setPresetButtons(presetGrid, presetKey);
     if (customSettingsEl) customSettingsEl.classList.toggle('hidden', presetKey !== 'custom');
     if (presetKey !== 'custom') applyPresetToInputs(PRESETS[presetKey], 'single');
+    updatePresetHoverTime('single');
   } else {
     selectedPresetMulti = presetKey;
     setPresetButtons(mpPresetGrid, presetKey);
     if (mpCustomSettingsEl) mpCustomSettingsEl.classList.toggle('hidden', presetKey !== 'custom');
     if (presetKey !== 'custom') applyPresetToInputs(PRESETS[presetKey], 'multi');
+    updatePresetHoverTime('multi');
+    broadcastRoomSettingsUpdate();
   }
+  updatePresetStatsDisplay();
 }
 
 function renderPublicRooms(rooms) {
@@ -810,7 +901,10 @@ function renderMultiplayerPlayers(players) {
   players.forEach((player) => {
     const row = document.createElement('div');
     row.className = 'mp-player';
-    row.textContent = player.isHost ? `${player.name} (host)` : player.name;
+    const tags = [];
+    if (player.isHost) tags.push('host');
+    if (player.isSpectator) tags.push('spectator');
+    row.textContent = tags.length ? `${player.name} (${tags.join(', ')})` : player.name;
     mpPlayersEl.appendChild(row);
   });
 }
@@ -860,6 +954,8 @@ function resetMultiplayerState({ clearToken = false } = {}) {
   multiplayer.eliminated = false;
   multiplayer.winnerId = null;
   multiplayer.playerName = null;
+  multiplayer.isSpectator = false;
+  multiplayer.settingsLocked = false;
   multiplayer.timeLeft = 0;
   multiplayer.nextCutIn = 0;
   multiplayer.lastRoomId = null;
@@ -871,8 +967,11 @@ function resetMultiplayerState({ clearToken = false } = {}) {
   if (mpLeaveBtn) mpLeaveBtn.classList.add('hidden');
   if (mpCreateBtn) mpCreateBtn.classList.remove('hidden');
   if (mpStartBtn) mpStartBtn.classList.add('hidden');
+  if (mpLockBtn) mpLockBtn.classList.add('hidden');
   if (mpPlayersTitleEl) mpPlayersTitleEl.textContent = 'Players:';
   if (mpPlayersEl) mpPlayersEl.innerHTML = '';
+  if (mpChatLogEl) mpChatLogEl.innerHTML = '';
+  if (mpLockStatusEl) mpLockStatusEl.textContent = '';
   if (leaderboardEl && !battle.active) leaderboardEl.classList.add('hidden');
   if (battleLayoutEl && !battle.active) battleLayoutEl.classList.add('single');
   updateStartButtonLabel();
@@ -905,19 +1004,23 @@ function handleWsMessage(data) {
   if (data.type === 'room:state') {
     multiplayer.enabled = true;
     setStartTab('multi');
+    setMpTab('create');
     const wasInRoom = multiplayer.inRoom;
     const prevRoomId = multiplayer.roomId;
     multiplayer.inRoom = true;
     multiplayer.roomId = data.room.id;
     multiplayer.roomMode = data.room.mode;
     multiplayer.roomSettings = data.room.settings;
+    multiplayer.settingsLocked = Boolean(data.room.settingsLocked);
     multiplayer.seed = data.room.seed;
     multiplayer.isHost = data.room.hostId === wsClientId;
     multiplayer.started = data.room.started;
+    multiplayer.isSpectator = Boolean(data.you?.isSpectator);
     if (!wasInRoom || prevRoomId !== data.room.id) {
       multiplayer.problemIndex = Number(data.room.problemIndex ?? 0);
     }
     multiplayer.targetIndex = Number(data.room.problemIndex ?? multiplayer.targetIndex ?? 0);
+    applyRoomSettings(data.room);
     if (mpLeaveBtn) mpLeaveBtn.classList.remove('hidden');
     if (mpCreateBtn) mpCreateBtn.classList.add('hidden');
     const statusPrefix = !wasInRoom || prevRoomId !== data.room.id
@@ -928,9 +1031,22 @@ function handleWsMessage(data) {
     if (mpRoomNameInput) mpRoomNameInput.value = data.room.displayName || 'room';
     if (mpRoomCodeInput) mpRoomCodeInput.value = data.room.id;
     setMultiplayerStatus(`code: ${data.room.id}`);
+    if (multiplayer.isSpectator) {
+      setMultiplayerStatus(`spectating · code: ${data.room.id}`);
+    }
     renderMultiplayerPlayers(data.room.playersList || []);
+    renderChatLog(data.room.chat || []);
+    updateMpSettingsControls();
     updateStartButtonLabel();
     setMpLoading(false);
+    return;
+  }
+  if (data.type === 'room:chat') {
+    if (data.chat) {
+      renderChatLog(data.chat);
+    } else if (data.message) {
+      appendChatMessage(data.message);
+    }
     return;
   }
   if (data.type === 'room:tick') {
@@ -951,6 +1067,7 @@ function handleWsMessage(data) {
     multiplayer.leaderboard = data.leaderboard || [];
     renderMultiplayerLeaderboard(multiplayer.leaderboard);
     if (battleStatusEl) battleStatusEl.textContent = data.status || '';
+    updateRankDisplay(multiplayer.placement);
     if (data.roomMode === 'battle' && data.winnerId) {
       if (data.winnerId === wsClientId) {
         resultOverlay.src = 'royale-winner.png';
@@ -1048,7 +1165,8 @@ function handleMultiplayerJoin() {
   const name = getMultiplayerName();
   multiplayer.playerName = name;
   const password = mpJoinPasswordInput?.value.trim() || '';
-  sendWsWhenReady({ type: 'room:join', roomId, name, password });
+  const spectate = Boolean(mpSpectateInput?.checked);
+  sendWsWhenReady({ type: 'room:join', roomId, name, password, spectate });
 }
 
 function handleMultiplayerList() {
@@ -1090,6 +1208,14 @@ function handleMultiplayerStartClick() {
   } else if (!multiplayer.started) {
     setMultiplayerStatus('waiting for host to start');
   }
+}
+
+function handleChatSend() {
+  if (!multiplayer.inRoom || !mpChatTextEl) return;
+  const text = mpChatTextEl.value.trim();
+  if (!text) return;
+  sendWsMessage({ type: 'room:chat', text });
+  mpChatTextEl.value = '';
 }
 
 async function handleSignup() {
@@ -1273,6 +1399,10 @@ function buildInputs(count) {
     input.inputMode = 'text';
     input.pattern = '-?[0-9]*';
     input.placeholder = `λ${i + 1}`;
+    if (multiplayer.enabled && multiplayer.isSpectator) {
+      input.disabled = true;
+      input.placeholder = 'spectating';
+    }
     input.addEventListener('input', () => handleInput(i));
     currentInputs.push(input);
     answerEl.appendChild(input);
@@ -1314,6 +1444,7 @@ function canMatch(value, used) {
 
 function handleInput(index) {
   if (!gameActive) return;
+  if (multiplayer.enabled && multiplayer.isSpectator) return;
   const value = parseInput(currentInputs[index].value);
   if (value === null) return;
 
@@ -1646,6 +1777,7 @@ function updateBattleStatus() {
   const nextCutIn = Math.max(0, nextCutTime - battle.t);
   battle.placement = placement;
   battleStatusEl.textContent = `placement: ${placement}/${remaining} · next cut in ${nextCutIn}s`;
+  updateRankDisplay(placement, remaining);
   renderLeaderboard(playerEntry);
 }
 
@@ -1875,6 +2007,7 @@ function startGame(options = {}) {
   timeLeft = timeLeftOverride ?? (settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit);
   scoreEl.textContent = score;
   timeEl.textContent = timeLeft;
+  updateRankDisplay(0);
 
   showOnlyScreen(screenGame);
   statsEl.style.visibility = 'visible';
@@ -1898,6 +2031,11 @@ function startGame(options = {}) {
   spawnDvdBox();
   nextProblem({ advanceIndex: false });
   focusInput(0);
+  updatePresetStatsDisplay();
+  if (multiplayer.enabled && multiplayer.isSpectator && feedbackEl) {
+    feedbackEl.textContent = 'spectating';
+    feedbackEl.className = 'feedback';
+  }
 
   if (timer) clearInterval(timer);
   if (!fromMultiplayer) {
@@ -1935,10 +2073,15 @@ function endGame() {
   clearInterval(timer);
   timer = null;
   submitResult();
+  const presetKey = resolvePresetKey(settings, activeStartTab === 'multi' ? selectedPresetMulti : selectedPresetSingle);
+  recordPresetResult(settings.mode || 'classic', presetKey || 'custom', score);
+  updatePresetStatsDisplay();
   const prevBest = bestScore;
   if (score >= bestScore) {
     bestScore = score;
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+    bestScoreUpdatedAt = new Date();
+    updateBestScoreTitle();
   }
   debugResultBackground = false;
   if (score >= prevBest) {
@@ -2004,9 +2147,28 @@ function endGame() {
   multiplayer.started = false;
 }
 
+function quickLeaveGame() {
+  if (!gameActive) return;
+  gameActive = false;
+  clearInterval(timer);
+  timer = null;
+  battle.active = false;
+  multiplayer.started = false;
+  if (multiplayer.enabled && multiplayer.inRoom) {
+    sendWsMessage({ type: 'room:leave' });
+    resetMultiplayerState({ clearToken: true });
+  }
+  showStartScreen();
+  hideStaticDvd();
+  clearDvdBoxes();
+  updatePresetStatsDisplay();
+}
+
 function showStartScreen() {
   showOnlyScreen(screenStart);
   statsEl.style.visibility = 'hidden';
+  if (presetStatsEl) presetStatsEl.style.display = 'none';
+  updateRankDisplay(0);
 }
 
 function showOnlyScreen(target) {
@@ -2056,6 +2218,36 @@ if (mpJoinBtn) mpJoinBtn.addEventListener('click', handleMultiplayerJoin);
 if (mpListBtn) mpListBtn.addEventListener('click', handleMultiplayerList);
 if (mpLeaveBtn) mpLeaveBtn.addEventListener('click', handleMultiplayerLeave);
 if (mpStartBtn) mpStartBtn.addEventListener('click', () => sendWsMessage({ type: 'room:start' }));
+if (mpLockBtn) mpLockBtn.addEventListener('click', () => {
+  sendWsMessage({ type: 'room:lock', locked: !multiplayer.settingsLocked });
+});
+if (mpChatSendBtn) mpChatSendBtn.addEventListener('click', handleChatSend);
+if (mpChatTextEl) {
+  mpChatTextEl.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      handleChatSend();
+    }
+  });
+}
+
+[
+  mpTimeLimitInput,
+  mpRangeInput,
+  mpSizeMinInput,
+  mpSizeMaxInput
+].forEach((input) => {
+  if (!input) return;
+  input.addEventListener('input', broadcastRoomSettingsUpdate);
+});
+[
+  mpSymmetricInput,
+  mpModeInput,
+  mpDifficultyInput
+].forEach((input) => {
+  if (!input) return;
+  input.addEventListener('change', broadcastRoomSettingsUpdate);
+});
 const setPowerModalOpen = async (isOpen) => {
   if (!powerModalEl) return;
   if (isOpen) {
@@ -2083,6 +2275,8 @@ if (leaderboardRefreshBtn) {
     fetchLeaderboard();
   });
 }
+
+if (leaveGameBtn) leaveGameBtn.addEventListener('click', quickLeaveGame);
 if (powerCloseBtn && powerModalEl) {
   powerCloseBtn.addEventListener('click', () => {
     setPowerModalOpen(false);
@@ -2104,6 +2298,13 @@ document.addEventListener('keydown', (event) => {
   if (screenDeploy.classList.contains('hidden')) return;
   event.preventDefault();
   if (activeStartTab === 'single') startGame();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'KeyL') return;
+  if (screenGame.classList.contains('hidden')) return;
+  event.preventDefault();
+  quickLeaveGame();
 });
 
 document.addEventListener('keydown', (event) => {
@@ -2141,6 +2342,7 @@ window.addEventListener('load', () => {
   setMpTab(mpTypeToggle === 1 ? 'join' : mpTypeToggle === 2 ? 'public' : 'create');
   selectPreset(selectedPresetSingle, 'single');
   selectPreset(selectedPresetMulti, 'multi');
+  applyPresetTooltips();
   if (leaderboardEl) leaderboardEl.classList.add('hidden');
   if (API_BASE_URL) {
     const stored = localStorage.getItem('eigenmac_auth');
@@ -2152,6 +2354,8 @@ window.addEventListener('load', () => {
     setAuth(null);
   }
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
+  updateBestScoreTitle();
+  updatePresetStatsDisplay();
   resizePad();
   resizeConfetti();
   showStaticDvd();

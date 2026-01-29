@@ -76,12 +76,13 @@ const ensureName = (name) => {
   return `guest_${randInt(1000, 9999)}`;
 };
 
-const issueReconnectToken = (clientId, roomId, name) => {
+const issueReconnectToken = (clientId, roomId, name, isSpectator = false) => {
   const token = crypto.randomBytes(16).toString('hex');
   reconnectTokens.set(token, {
     roomId,
     playerId: clientId,
     name,
+    isSpectator,
     lastSeen: Date.now()
   });
   const client = clients.get(clientId);
@@ -651,11 +652,11 @@ wss.on('connection', (ws) => {
           id: clientId,
           name: ensureName(entry.name),
           score: 0,
-          alive: true,
+          alive: !entry.isSpectator,
           lastScoreTime: 0,
           problemIndex: room.problemIndex,
           connected: true,
-          isSpectator: false,
+          isSpectator: Boolean(entry.isSpectator),
           isBot: false
         });
       }
@@ -734,7 +735,7 @@ wss.on('connection', (ws) => {
       rooms.set(id, room);
       client.roomId = id;
       room.lastActivity = Date.now();
-      const token = issueReconnectToken(clientId, id, room.players.get(clientId).name);
+      const token = issueReconnectToken(clientId, id, room.players.get(clientId).name, false);
       send(ws, { type: 'room:token', token });
       syncBots(room);
       sendRoomState(room);
@@ -773,7 +774,7 @@ wss.on('connection', (ws) => {
       });
       client.roomId = room.id;
       room.lastActivity = Date.now();
-      const token = issueReconnectToken(clientId, room.id, room.players.get(clientId).name);
+      const token = issueReconnectToken(clientId, room.id, room.players.get(clientId).name, spectate);
       send(ws, { type: 'room:token', token });
       syncBots(room);
       sendRoomState(room);
@@ -820,7 +821,7 @@ wss.on('connection', (ws) => {
         sizeMax: Number(incoming.sizeMax ?? room.settings.sizeMax ?? 3),
         difficulty: incoming.difficulty ?? room.settings.difficulty ?? 'medium'
       };
-      room.mode = msg.mode === 'battle' ? 'battle' : room.mode === 'battle' ? 'battle' : 'classic';
+      room.mode = msg.mode === 'battle' ? 'battle' : 'classic';
       room.seed = crypto.randomUUID();
       room.problemIndex = 0;
       room.players.forEach((player) => {
