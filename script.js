@@ -1752,22 +1752,6 @@ function endPadDraw() {
 }
 
 function drawPadLabel() {
-  if (!padCtx || padLabelDrawn) return;
-  const x = Math.max(16, window.innerWidth - 240);
-  const y = 90;
-  padCtx.save();
-  padCtx.strokeStyle = '#b8bcc5';
-  padCtx.lineWidth = 2.5;
-  padCtx.beginPath();
-  padCtx.rect(x - 16, y - 56, 210, 90);
-  padCtx.stroke();
-
-  padCtx.fillStyle = '#b8bcc5';
-  padCtx.font = '28px "Comic Sans MS", "Comic Sans", cursive';
-  padCtx.fillText('notepad', x, y);
-  padCtx.font = '18px "Comic Sans MS", "Comic Sans", cursive';
-  padCtx.fillText('draw here', x + 6, y + 26);
-  padCtx.restore();
   padLabelDrawn = true;
 }
 
