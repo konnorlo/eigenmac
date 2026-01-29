@@ -95,20 +95,33 @@ const listPublicRooms = () => {
 
 const signupSchema = z.object({
   username: z.string().min(3).max(24).regex(/^[a-zA-Z0-9_]+$/),
-  password: z.string().min(8).max(64)
+  password: z.string().min(1).max(64)
 });
 
 const loginSchema = z.object({
   username: z.string().min(3).max(24),
-  password: z.string().min(8).max(64)
+  password: z.string().min(1).max(64)
 });
 
 const solveSchema = z.object({
   username: z.string().min(3).max(24),
-  password: z.string().min(8).max(64),
+  password: z.string().min(1).max(64),
   dimension: z.number().int().min(2).max(10),
   score: z.number().int().min(0).max(100000),
   solveSeconds: z.number().min(0).max(3600)
+});
+
+const resultSchema = z.object({
+  username: z.string().min(3).max(24),
+  password: z.string().min(1).max(64),
+  mode: z.enum(['classic', 'battle']),
+  preset: z.string().min(1).max(20),
+  score: z.number().int().min(0).max(100000),
+  duration: z.number().int().min(0).max(3600),
+  sizeMin: z.number().int().min(2).max(10),
+  sizeMax: z.number().int().min(2).max(10),
+  range: z.number().int().min(1).max(50),
+  symmetric: z.boolean()
 });
 
 app.get('/health', (_req, res) => {
@@ -248,6 +261,45 @@ app.post('/solve', async (req, res) => {
   });
 
   res.json({ ...updated, bestScore: bestOverall._max.bestScore ?? newBest, power });
+});
+
+app.post('/results', async (req, res) => {
+  const parsed = resultSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_input' });
+
+  const { username, password, ...payload } = parsed.data;
+  const user = await prisma.user.findUnique({ where: { username } });
+  if (!user) return res.status(401).json({ error: 'invalid_credentials' });
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) return res.status(401).json({ error: 'invalid_credentials' });
+
+  const created = await prisma.gameResult.create({
+    data: {
+      userId: user.id,
+      ...payload
+    }
+  });
+  res.json({ id: created.id });
+});
+
+app.get('/leaderboard', async (req, res) => {
+  const mode = req.query.mode === 'battle' ? 'battle' : 'classic';
+  const preset = typeof req.query.preset === 'string' ? req.query.preset : 'p2';
+  const items = await prisma.gameResult.findMany({
+    where: { mode, preset },
+    orderBy: [{ score: 'desc' }, { createdAt: 'asc' }],
+    take: 20,
+    include: { user: true }
+  });
+  res.json({
+    items: items.map((r) => ({
+      username: r.user.username,
+      score: r.score,
+      duration: r.duration,
+      createdAt: r.createdAt
+    }))
+  });
 });
 
 app.get('/power-leaderboard', async (_req, res) => {

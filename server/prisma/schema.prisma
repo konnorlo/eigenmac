@@ -15,6 +15,7 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   stats         UserStat[]
+  results       GameResult[]
 }
 
 model UserStat {
@@ -33,4 +34,22 @@ model UserStat {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, dimension])
+}
+
+model GameResult {
+  id        String   @id @default(cuid())
+  userId    String
+  mode      String
+  preset    String
+  score     Int
+  duration  Int
+  sizeMin   Int
+  sizeMax   Int
+  range     Int
+  symmetric Boolean
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([mode, preset, score])
 }

@@ -1,4 +1,4 @@
-// DVD logo settings (easy tweak)
+// DVD logo settings
 const DVD_SPEED_X = 16;
 const DVD_SPEED_Y = 14;
 const DVD_WIDTH = 420;
@@ -13,7 +13,7 @@ const DVD_ACCEL_RATE = 0.015;
 const DVD_MAX_MULT = 1.8;
 const DVD_BOUNCE_MULT = 0.22;
 
-// Game default settings (easy tweak)
+// Game default settings
 const DEFAULT_TIME_LIMIT = 120;
 const DEFAULT_RANGE = 6;
 const DEFAULT_SIZE_MIN = 2;
@@ -22,7 +22,7 @@ const DEFAULT_SYMMETRIC = false;
 const DEFAULT_MODE = 'classic';
 const DEFAULT_DIFFICULTY = 'medium';
 
-// Optional API (leave empty to disable)
+// API
 const API_BASE_URL = 'https://eigenmac1.onrender.com';
 const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
 const POWER_FORMULA = 'best avg 5 in a row × (matrix size)!';
@@ -206,16 +206,14 @@ const BOT_NAMES = [
   'Lyra Stone',
   'Owen Vale',
   'Hazel Quinn',
+
+
   'Justin Wang',
-  'Aarush Chugh',
-  'Aarush Chugh',
-  'Aarush Chugh',
-  'Aarush Chugh',
   'Aarush Chugh',
   'Aman Thawani',
   'Ethan Wang',
   'Ethan Bilderbeek',
-  'Kanye West',
+  'Michitaka Ito',
   'Ishanth Srinivas',
   'Jordan Hu',
   'Panav Pallothu',
@@ -224,9 +222,12 @@ const BOT_NAMES = [
   'Neal Pannala',
   'Kevin Li',
   'Brian Jiang',
-  'Brian Jiang',
-  'Brian Jiang',
-  'Brian Jiang'
+  'Ian Teo',
+  'Felipe Real',
+  'Ashwin Balaraman',
+  'Tim You',
+  'Rithvik Ijju',
+  'Elias Raki'
 ];
 
 const PLAYER_NAME = 'you';
@@ -404,6 +405,47 @@ async function submitSolve(dimension, solveSeconds, dimensionScore) {
       if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
     }
   }
+}
+
+function resolvePresetKey(currentSettings, fallbackPreset) {
+  const entries = Object.entries(PRESETS);
+  for (const [key, preset] of entries) {
+    if (
+      preset.timeLimit === currentSettings.timeLimit &&
+      preset.sizeMin === currentSettings.sizeMin &&
+      preset.sizeMax === currentSettings.sizeMax &&
+      preset.range === currentSettings.range &&
+      preset.symmetric === currentSettings.symmetric
+    ) {
+      return key;
+    }
+  }
+  return fallbackPreset || 'custom';
+}
+
+async function submitResult() {
+  if (!API_BASE_URL) return;
+  const activeAuth = await ensureAuth();
+  if (!activeAuth) return;
+  const presetFallback = activeStartTab === 'multi' ? selectedPresetMulti : selectedPresetSingle;
+  const preset = resolvePresetKey(settings, presetFallback);
+  const duration = settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit;
+  const payload = {
+    ...activeAuth,
+    mode: settings.mode,
+    preset: preset || 'custom',
+    score,
+    duration,
+    sizeMin: settings.sizeMin,
+    sizeMax: settings.sizeMax,
+    range: settings.range,
+    symmetric: settings.symmetric
+  };
+  await fetch(`${API_BASE_URL}/results`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 }
 
 async function fetchPowerLeaderboard() {
@@ -894,7 +936,7 @@ async function handleSignup() {
   if (!API_BASE_URL) return;
   const username = authUsernameInput.value.trim();
   const password = authPasswordInput.value.trim();
-  if (!username || password.length < 8) {
+  if (!username || password.length < 1) {
     if (authStatusEl) authStatusEl.textContent = 'invalid username/password';
     return;
   }
@@ -920,7 +962,7 @@ async function handleLogin() {
   if (!API_BASE_URL) return;
   const username = authUsernameInput.value.trim();
   const password = authPasswordInput.value.trim();
-  if (!username || password.length < 8) {
+  if (!username || password.length < 1) {
     if (authStatusEl) authStatusEl.textContent = 'invalid username/password';
     return;
   }
@@ -1715,6 +1757,7 @@ function endGame() {
   gameActive = false;
   clearInterval(timer);
   timer = null;
+  submitResult();
   const prevBest = bestScore;
   if (score >= bestScore) {
     bestScore = score;
