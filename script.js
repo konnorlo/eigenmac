@@ -487,6 +487,10 @@ function savePresetStats(data) {
 
 function updatePresetStatsDisplay() {
   if (!presetStatsEl) return;
+  if (!gameActive || screenGame.classList.contains('hidden')) {
+    presetStatsEl.style.display = 'none';
+    return;
+  }
   const key = resolvePresetKey(settings, activeStartTab === 'multi' ? selectedPresetMulti : selectedPresetSingle);
   if (!key) {
     presetStatsEl.style.display = 'none';
@@ -536,9 +540,18 @@ function applyRoomSettings(room) {
 
 function updateMpSettingsControls() {
   const inRoom = multiplayer.inRoom;
-  if (mpTabsEl) mpTabsEl.classList.toggle('hidden', inRoom);
-  if (mpCreateInitialEl) mpCreateInitialEl.classList.toggle('hidden', inRoom);
-  if (mpCreateLobbyEl) mpCreateLobbyEl.classList.toggle('hidden', !inRoom);
+  if (mpTabsEl) {
+    mpTabsEl.classList.toggle('hidden', inRoom);
+    mpTabsEl.style.display = inRoom ? 'none' : 'flex';
+  }
+  if (mpCreateInitialEl) {
+    mpCreateInitialEl.classList.toggle('hidden', inRoom);
+    mpCreateInitialEl.style.display = inRoom ? 'none' : 'grid';
+  }
+  if (mpCreateLobbyEl) {
+    mpCreateLobbyEl.classList.toggle('hidden', !inRoom);
+    mpCreateLobbyEl.style.display = inRoom ? 'grid' : 'none';
+  }
   if (mpPanelJoin && inRoom) {
     mpPanelJoin.classList.add('hidden');
     mpPanelJoin.style.display = 'none';
