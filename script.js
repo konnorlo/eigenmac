@@ -188,9 +188,9 @@ const resultBetterImg = new Image();
 const resultLowerImg = new Image();
 const resultRoyaleWinImg = new Image();
 const paircraftImg = new Image();
-resultBetterImg.src = 'better-than-best.png';
-resultLowerImg.src = 'lower-than-best.png';
-resultRoyaleWinImg.src = 'royale-winner.png';
+resultBetterImg.src = 'images/new_best.png';
+resultLowerImg.src = 'images/not_new_best.png';
+resultRoyaleWinImg.src = 'images/royale_winner.png';
 paircraftImg.src = 'paircraft.png';
 
 const BOT_NAMES = [
@@ -1138,7 +1138,7 @@ function handleWsMessage(data) {
     updateRankDisplay(multiplayer.placement);
     if (data.roomMode === 'battle' && data.winnerId) {
       if (data.winnerId === wsClientId) {
-        resultOverlay.src = 'royale-winner.png';
+        resultOverlay.src = 'images/royale_winner.png';
         resultOverlay.alt = 'battle royale winner';
         resultOverlay.style.display = 'block';
       }
@@ -2167,19 +2167,19 @@ function endGame() {
   }
   if (resultOverlay) {
     if (settings.mode === 'battle' && battle.placement === 1 && !battle.eliminated) {
-      resultOverlay.src = 'royale-winner.png';
+      resultOverlay.src = 'images/royale_winner.png';
       resultOverlay.alt = 'battle royale winner';
       resultOverlay.style.display = 'block';
     } else if (battle.eliminated) {
-      resultOverlay.src = 'lower-than-best.png';
+      resultOverlay.src = 'images/not_new_best.png';
       resultOverlay.alt = 'lower than best';
       resultOverlay.style.display = 'block';
     } else if (score >= prevBest) {
-      resultOverlay.src = 'better-than-best.png';
+      resultOverlay.src = 'images/new_best.png';
       resultOverlay.alt = 'better than best';
       resultOverlay.style.display = 'block';
     } else if (score < prevBest) {
-      resultOverlay.src = 'lower-than-best.png';
+      resultOverlay.src = 'images/not_new_best.png';
       resultOverlay.alt = 'lower than best';
       resultOverlay.style.display = 'block';
     } else {
@@ -2199,11 +2199,11 @@ function endGame() {
   }
   if (multiplayer.enabled && multiplayer.winnerId) {
     if (multiplayer.winnerId === wsClientId) {
-      resultOverlay.src = 'royale-winner.png';
+      resultOverlay.src = 'images/royale_winner.png';
       resultOverlay.alt = 'battle royale winner';
       resultOverlay.style.display = 'block';
     } else {
-      resultOverlay.src = 'lower-than-best.png';
+      resultOverlay.src = 'images/not_new_best.png';
       resultOverlay.alt = 'eliminated';
       resultOverlay.style.display = 'block';
     }
