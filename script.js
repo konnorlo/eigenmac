@@ -123,11 +123,8 @@ const mpPanelPublic = document.getElementById('mp-panel-public');
 const mpCreateInitialEl = document.getElementById('mp-create-initial');
 const mpCreateLobbyEl = document.getElementById('mp-create-lobby');
 const mpRoomNameInput = document.getElementById('mp-room-name');
-const mpRoomNameLobbyInput = document.getElementById('mp-room-name-lobby');
 const mpPasswordInput = document.getElementById('mp-password');
-const mpRoomCodeDisplayInput = document.getElementById('mp-room-code-display');
 const mpRoomCodeInput = document.getElementById('mp-room-code-join');
-const mpRoomCodeLobbyInput = document.getElementById('mp-room-code');
 const mpJoinPasswordInput = document.getElementById('mp-join-password');
 const mpModeInput = document.getElementById('mp-mode');
 const mpDifficultyInput = document.getElementById('mp-difficulty');
@@ -563,7 +560,7 @@ function updateMpSettingsControls() {
 
   const isEditable = inRoom && multiplayer.isHost && !multiplayer.settingsLocked && !multiplayer.started;
   const shouldDisable = !isEditable;
-  [mpTimeLimitInput, mpRangeInput, mpSizeMinInput, mpSizeMaxInput, mpSymmetricInput, mpModeInput, mpDifficultyInput, mpRoomNameLobbyInput, mpPasswordInput]
+  [mpTimeLimitInput, mpRangeInput, mpSizeMinInput, mpSizeMaxInput, mpSymmetricInput, mpModeInput, mpDifficultyInput]
     .filter(Boolean)
     .forEach((el) => {
       el.disabled = shouldDisable;
@@ -1043,8 +1040,6 @@ function resetMultiplayerState({ clearToken = false } = {}) {
   if (mpPlayersEl) mpPlayersEl.innerHTML = '';
   if (mpChatLogEl) mpChatLogEl.innerHTML = '';
   if (mpLockStatusEl) mpLockStatusEl.textContent = '';
-  if (mpRoomCodeDisplayInput) mpRoomCodeDisplayInput.value = '';
-  if (mpRoomCodeLobbyInput) mpRoomCodeLobbyInput.value = '';
   if (leaderboardEl && !battle.active) leaderboardEl.classList.add('hidden');
   if (battleLayoutEl && !battle.active) battleLayoutEl.classList.add('single');
   updateStartButtonLabel();
@@ -1103,9 +1098,6 @@ function handleWsMessage(data) {
     const displayName = data.room.displayName || 'room';
     setRoomStatus(`${statusPrefix}: ${displayName}<br>code: ${data.room.id}`);
     if (mpRoomNameInput) mpRoomNameInput.value = data.room.displayName || 'room';
-    if (mpRoomNameLobbyInput) mpRoomNameLobbyInput.value = data.room.displayName || 'room';
-    if (mpRoomCodeDisplayInput) mpRoomCodeDisplayInput.value = data.room.id;
-    if (mpRoomCodeLobbyInput) mpRoomCodeLobbyInput.value = data.room.id;
     setMultiplayerStatus(`code: ${data.room.id}`);
     if (multiplayer.isSpectator) {
       setMultiplayerStatus(`spectating · code: ${data.room.id}`);
@@ -1220,7 +1212,6 @@ function handleMultiplayerCreate() {
   multiplayer.playerName = name;
   const roomName = mpRoomNameInput?.value.trim() || 'room';
   const password = mpPasswordInput?.value.trim() || '';
-  if (mpRoomNameLobbyInput) mpRoomNameLobbyInput.value = roomName;
   const baseSettings = getMultiSettings();
   const payload = {
     type: 'room:create',
@@ -2092,6 +2083,7 @@ function startGame(options = {}) {
 
   showOnlyScreen(screenGame);
   statsEl.style.visibility = 'visible';
+  if (leaveGameBtn) leaveGameBtn.classList.toggle('hidden', !multiplayer.enabled);
   if (mpLeaveBtn) mpLeaveBtn.classList.toggle('hidden', !multiplayer.inRoom);
   if (resultOverlay) {
     resultOverlay.style.display = 'none';
@@ -2230,6 +2222,7 @@ function endGame() {
 }
 
 function quickLeaveGame() {
+  if (!multiplayer.enabled) return;
   if (!gameActive) return;
   gameActive = false;
   clearInterval(timer);
@@ -2385,6 +2378,7 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'KeyL') return;
   if (screenGame.classList.contains('hidden')) return;
+  if (!multiplayer.enabled) return;
   event.preventDefault();
   quickLeaveGame();
 });
