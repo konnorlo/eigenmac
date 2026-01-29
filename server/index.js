@@ -471,6 +471,7 @@ const updateBots = (room) => {
 
 const sendRoomState = (room) => {
   const playersList = Array.from(room.players.values()).map((p) => ({
+    id: p.id,
     name: p.name,
     isHost: p.id === room.hostId,
     isSpectator: Boolean(p.isSpectator)
@@ -836,6 +837,37 @@ wss.on('connection', (ws) => {
       const room = rooms.get(client.roomId);
       if (!room || room.hostId !== clientId) return;
       room.settingsLocked = Boolean(msg.locked);
+      room.lastActivity = Date.now();
+      sendRoomState(room);
+      return;
+    }
+
+    if (msg.type === 'room:kick') {
+      const room = rooms.get(client.roomId);
+      if (!room || room.hostId !== clientId) return;
+      const targetId = msg.playerId;
+      if (!targetId || targetId === clientId) return;
+      const target = room.players.get(targetId);
+      if (!target) return;
+      room.players.delete(targetId);
+      const targetClient = clients.get(targetId);
+      if (targetClient) {
+        targetClient.roomId = null;
+        if (targetClient.ws) send(targetClient.ws, { type: 'room:kicked' });
+      }
+      room.lastActivity = Date.now();
+      syncBots(room);
+      sendRoomState(room);
+      return;
+    }
+
+    if (msg.type === 'room:promote') {
+      const room = rooms.get(client.roomId);
+      if (!room || room.hostId !== clientId) return;
+      const targetId = msg.playerId;
+      if (!targetId) return;
+      if (!room.players.has(targetId)) return;
+      room.hostId = targetId;
       room.lastActivity = Date.now();
       sendRoomState(room);
       return;

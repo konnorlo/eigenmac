@@ -27,6 +27,8 @@ const API_BASE_URL = 'https://eigenmac1.onrender.com';
 const WS_BASE_URL = API_BASE_URL ? API_BASE_URL.replace(/^http/, 'ws') : '';
 const POWER_FORMULA = 'per mode, per preset leaderboards';
 const RECONNECT_TOKEN_KEY = 'eigenmac_reconnect_token';
+const LOCAL_BEST_KEY = 'eigenmac_best_local';
+const LOCAL_BEST_TIME_KEY = 'eigenmac_best_local_time';
 
 // 0 = multiplayer, 1 = singleplayer
 let typeToggle = 1;
@@ -90,6 +92,7 @@ const timeEl = document.getElementById('time');
 const scoreEl = document.getElementById('score');
 const feedbackEl = document.getElementById('feedback');
 const rankValueEl = document.getElementById('rank-value');
+const rankStatEl = document.getElementById('rank-stat');
 
 const startBtn = document.getElementById('start');
 const editSettingsBtn = document.getElementById('edit-settings');
@@ -113,12 +116,18 @@ const mpCustomSettingsEl = document.getElementById('mp-custom-settings');
 const mpTabCreate = document.getElementById('mp-tab-create');
 const mpTabJoin = document.getElementById('mp-tab-join');
 const mpTabPublic = document.getElementById('mp-tab-public');
+const mpTabsEl = document.getElementById('mp-tabs');
 const mpPanelCreate = document.getElementById('mp-panel-create');
 const mpPanelJoin = document.getElementById('mp-panel-join');
 const mpPanelPublic = document.getElementById('mp-panel-public');
+const mpCreateInitialEl = document.getElementById('mp-create-initial');
+const mpCreateLobbyEl = document.getElementById('mp-create-lobby');
 const mpRoomNameInput = document.getElementById('mp-room-name');
+const mpRoomNameLobbyInput = document.getElementById('mp-room-name-lobby');
 const mpPasswordInput = document.getElementById('mp-password');
-const mpRoomCodeInput = document.getElementById('mp-room-code');
+const mpRoomCodeDisplayInput = document.getElementById('mp-room-code-display');
+const mpRoomCodeInput = document.getElementById('mp-room-code-join');
+const mpRoomCodeLobbyInput = document.getElementById('mp-room-code');
 const mpJoinPasswordInput = document.getElementById('mp-join-password');
 const mpModeInput = document.getElementById('mp-mode');
 const mpDifficultyInput = document.getElementById('mp-difficulty');
@@ -168,7 +177,6 @@ const deployScreen = document.getElementById('screen-deploy');
 const leaderboardEl = document.getElementById('leaderboard');
 const leaderboardListEl = document.getElementById('leaderboard-list');
 const battleLayoutEl = document.getElementById('battle-layout');
-const powerScoreEl = document.getElementById('power-score');
 const mpStatusEl = document.getElementById('mp-status');
 const mpLeaveBtn = document.getElementById('mp-leave');
 const mpStartBtn = document.getElementById('mp-start');
@@ -259,7 +267,6 @@ let playerLastScoreTime = 0;
 let auth = null;
 let problemStartTime = Date.now();
 let dimensionScores = {};
-let powerScore = 0;
 let wsClientId = null;
 let settings = {
   timeLimit: DEFAULT_TIME_LIMIT,
@@ -389,8 +396,40 @@ function updateBestScoreTitle() {
   bestScoreEl.title = time ? `best score updated: ${time}` : 'best score';
 }
 
+function loadLocalBestScore() {
+  try {
+    const raw = localStorage.getItem(LOCAL_BEST_KEY);
+    const time = localStorage.getItem(LOCAL_BEST_TIME_KEY);
+    if (raw) {
+      bestScore = Number(raw) || 0;
+      bestScoreUpdatedAt = time ? new Date(time) : null;
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveLocalBestScore() {
+  try {
+    localStorage.setItem(LOCAL_BEST_KEY, `${bestScore}`);
+    if (bestScoreUpdatedAt) {
+      localStorage.setItem(LOCAL_BEST_TIME_KEY, bestScoreUpdatedAt.toISOString());
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function updateRankDisplay(placement, total) {
-  if (!rankValueEl) return;
+  if (!rankValueEl || !rankStatEl) return;
+  const showRank = (multiplayer.enabled && multiplayer.roomMode === 'battle')
+    || (!multiplayer.enabled && settings.mode === 'battle');
+  rankStatEl.classList.toggle('hidden', !showRank);
+  if (!showRank) {
+    rankValueEl.textContent = '-';
+    rankValueEl.title = 'rank';
+    return;
+  }
   const value = placement ? `${placement}${total ? `/${total}` : ''}` : '-';
   rankValueEl.textContent = value;
   const time = formatDateTime(new Date());
@@ -496,9 +535,22 @@ function applyRoomSettings(room) {
 }
 
 function updateMpSettingsControls() {
-  const isEditable = multiplayer.inRoom && multiplayer.isHost && !multiplayer.settingsLocked && !multiplayer.started;
+  const inRoom = multiplayer.inRoom;
+  if (mpTabsEl) mpTabsEl.classList.toggle('hidden', inRoom);
+  if (mpCreateInitialEl) mpCreateInitialEl.classList.toggle('hidden', inRoom);
+  if (mpCreateLobbyEl) mpCreateLobbyEl.classList.toggle('hidden', !inRoom);
+  if (mpPanelJoin && inRoom) {
+    mpPanelJoin.classList.add('hidden');
+    mpPanelJoin.style.display = 'none';
+  }
+  if (mpPanelPublic && inRoom) {
+    mpPanelPublic.classList.add('hidden');
+    mpPanelPublic.style.display = 'none';
+  }
+
+  const isEditable = inRoom && multiplayer.isHost && !multiplayer.settingsLocked && !multiplayer.started;
   const shouldDisable = !isEditable;
-  [mpTimeLimitInput, mpRangeInput, mpSizeMinInput, mpSizeMaxInput, mpSymmetricInput, mpModeInput, mpDifficultyInput]
+  [mpTimeLimitInput, mpRangeInput, mpSizeMinInput, mpSizeMaxInput, mpSymmetricInput, mpModeInput, mpDifficultyInput, mpRoomNameLobbyInput, mpPasswordInput]
     .filter(Boolean)
     .forEach((el) => {
       el.disabled = shouldDisable;
@@ -509,7 +561,7 @@ function updateMpSettingsControls() {
     });
   }
   if (mpLockBtn) {
-    mpLockBtn.classList.toggle('hidden', !multiplayer.inRoom || !multiplayer.isHost);
+    mpLockBtn.classList.toggle('hidden', !inRoom || !multiplayer.isHost);
     mpLockBtn.textContent = multiplayer.settingsLocked ? 'unlock settings' : 'lock settings';
     mpLockBtn.disabled = multiplayer.started;
   }
@@ -577,10 +629,7 @@ async function refreshAuthStats() {
     bestScoreUpdatedAt = new Date();
     updateBestScoreTitle();
   }
-  if (typeof data.power === 'number') {
-    powerScore = data.power;
-    if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
-  }
+  // power removed
 }
 
 
@@ -602,10 +651,7 @@ async function submitSolve(dimension, solveSeconds, dimensionScore) {
       bestScoreUpdatedAt = new Date();
       updateBestScoreTitle();
     }
-    if (typeof data.power === 'number') {
-      powerScore = data.power;
-      if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
-    }
+    // power removed
   }
 }
 
@@ -775,8 +821,11 @@ function updateStartButtonLabel() {
     } else if (multiplayer.isHost && !multiplayer.started) {
       mpStartBtn.classList.remove('hidden');
       mpStartBtn.disabled = false;
-    } else {
+    } else if (multiplayer.isHost) {
       mpStartBtn.classList.remove('hidden');
+      mpStartBtn.disabled = true;
+    } else {
+      mpStartBtn.classList.add('hidden');
       mpStartBtn.disabled = true;
     }
   }
@@ -805,6 +854,7 @@ function setStartTab(tab) {
 }
 
 function setMpTab(tab) {
+  if (multiplayer.inRoom) tab = 'create';
   mpTypeToggle = tab === 'create' ? 0 : tab === 'join' ? 1 : 2;
   activeMpTab = tab;
   if (mpTabCreate) mpTabCreate.classList.toggle('active', tab === 'create');
@@ -822,6 +872,7 @@ function setMpTab(tab) {
     mpPanelPublic.classList.toggle('hidden', tab !== 'public');
     mpPanelPublic.style.display = tab === 'public' ? 'grid' : 'none';
   }
+  updateMpSettingsControls();
 }
 
 function selectPreset(presetKey, scope = 'single') {
@@ -870,19 +921,10 @@ function renderPublicRooms(rooms) {
 function renderMultiplayerLeaderboard(items) {
   if (!leaderboardListEl) return;
   const full = items || [];
-  let list = full;
   const playerName = multiplayer.playerName;
-  if (playerName) {
-    const idx = full.findIndex((c) => c.name === playerName);
-    if (idx !== -1) {
-      const start = Math.max(0, idx - 3);
-      const end = Math.min(full.length, idx + 4);
-      list = full.slice(start, end);
-    }
-  }
   leaderboardListEl.innerHTML = '';
-  list.forEach((c) => {
-    const rank = full.indexOf(c) + 1;
+  full.forEach((c, idx) => {
+    const rank = idx + 1;
     const li = document.createElement('li');
     li.className = 'leaderboard-item';
     const name = c.name === playerName ? `${c.name} (you)` : c.name;
@@ -904,7 +946,23 @@ function renderMultiplayerPlayers(players) {
     const tags = [];
     if (player.isHost) tags.push('host');
     if (player.isSpectator) tags.push('spectator');
-    row.textContent = tags.length ? `${player.name} (${tags.join(', ')})` : player.name;
+    const label = tags.length ? `${player.name} (${tags.join(', ')})` : player.name;
+    row.textContent = label;
+    if (multiplayer.isHost && player.id && player.id !== wsClientId) {
+      const controls = document.createElement('span');
+      controls.className = 'mp-player-controls';
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'ghost small';
+      kickBtn.textContent = 'remove';
+      kickBtn.addEventListener('click', () => sendWsMessage({ type: 'room:kick', playerId: player.id }));
+      const promoteBtn = document.createElement('button');
+      promoteBtn.className = 'ghost small';
+      promoteBtn.textContent = 'promote';
+      promoteBtn.addEventListener('click', () => sendWsMessage({ type: 'room:promote', playerId: player.id }));
+      controls.appendChild(promoteBtn);
+      controls.appendChild(kickBtn);
+      row.appendChild(controls);
+    }
     mpPlayersEl.appendChild(row);
   });
 }
@@ -972,9 +1030,12 @@ function resetMultiplayerState({ clearToken = false } = {}) {
   if (mpPlayersEl) mpPlayersEl.innerHTML = '';
   if (mpChatLogEl) mpChatLogEl.innerHTML = '';
   if (mpLockStatusEl) mpLockStatusEl.textContent = '';
+  if (mpRoomCodeDisplayInput) mpRoomCodeDisplayInput.value = '';
+  if (mpRoomCodeLobbyInput) mpRoomCodeLobbyInput.value = '';
   if (leaderboardEl && !battle.active) leaderboardEl.classList.add('hidden');
   if (battleLayoutEl && !battle.active) battleLayoutEl.classList.add('single');
   updateStartButtonLabel();
+  updateMpSettingsControls();
 }
 
 function handleWsMessage(data) {
@@ -1029,7 +1090,9 @@ function handleWsMessage(data) {
     const displayName = data.room.displayName || 'room';
     setRoomStatus(`${statusPrefix}: ${displayName}<br>code: ${data.room.id}`);
     if (mpRoomNameInput) mpRoomNameInput.value = data.room.displayName || 'room';
-    if (mpRoomCodeInput) mpRoomCodeInput.value = data.room.id;
+    if (mpRoomNameLobbyInput) mpRoomNameLobbyInput.value = data.room.displayName || 'room';
+    if (mpRoomCodeDisplayInput) mpRoomCodeDisplayInput.value = data.room.id;
+    if (mpRoomCodeLobbyInput) mpRoomCodeLobbyInput.value = data.room.id;
     setMultiplayerStatus(`code: ${data.room.id}`);
     if (multiplayer.isSpectator) {
       setMultiplayerStatus(`spectating · code: ${data.room.id}`);
@@ -1090,6 +1153,12 @@ function handleWsMessage(data) {
     setMpLoading(false);
     return;
   }
+  if (data.type === 'room:kicked') {
+    setMultiplayerStatus('removed from room');
+    resetMultiplayerState({ clearToken: true });
+    showStartScreen();
+    return;
+  }
 }
 
 function ensureMultiplayerSocket() {
@@ -1127,6 +1196,7 @@ function ensureMultiplayerSocket() {
 }
 
 function handleMultiplayerCreate() {
+  clearReconnectToken();
   console.log('[mp] create click', {
     mode: mpModeInput?.value,
     room: mpRoomNameInput?.value,
@@ -1137,6 +1207,7 @@ function handleMultiplayerCreate() {
   multiplayer.playerName = name;
   const roomName = mpRoomNameInput?.value.trim() || 'room';
   const password = mpPasswordInput?.value.trim() || '';
+  if (mpRoomNameLobbyInput) mpRoomNameLobbyInput.value = roomName;
   const baseSettings = getMultiSettings();
   const payload = {
     type: 'room:create',
@@ -1153,6 +1224,7 @@ function handleMultiplayerCreate() {
 }
 
 function handleMultiplayerJoin() {
+  clearReconnectToken();
   console.log('[mp] join click', {
     room: mpRoomCodeInput?.value,
     name: getMultiplayerName()
@@ -1274,18 +1346,14 @@ async function handleLogin() {
     bestScoreUpdatedAt = new Date();
     updateBestScoreTitle();
   }
-  if (typeof data.power === 'number') {
-    powerScore = data.power;
-    if (powerScoreEl) powerScoreEl.textContent = `power: ${powerScore.toFixed(2)}`;
-  }
+  // power removed
   if (authStatusEl) authStatusEl.textContent = `logged in: ${username}`;
 }
 
 function handleLogout() {
   setAuth(null);
-  bestScore = 0;
+  loadLocalBestScore();
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
-  bestScoreUpdatedAt = null;
   updateBestScoreTitle();
 }
 
@@ -2082,6 +2150,7 @@ function endGame() {
     if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
     bestScoreUpdatedAt = new Date();
     updateBestScoreTitle();
+    if (!auth) saveLocalBestScore();
   }
   debugResultBackground = false;
   if (score >= prevBest) {
@@ -2114,7 +2183,7 @@ function endGame() {
       resultOverlay.alt = '';
     }
   }
-  if (multiplayer.enabled && multiplayer.started) {
+  if (multiplayer.enabled && multiplayer.started && multiplayer.roomMode === 'battle') {
     const placement = multiplayer.placement || 0;
     const total = multiplayer.leaderboard.length || 0;
     finalScoreEl.textContent = placement ? `score: ${score} · rank: ${placement}/${total || '?'}` : `score: ${score}`;
@@ -2349,9 +2418,12 @@ window.addEventListener('load', () => {
     if (stored) {
       setAuth(JSON.parse(stored));
       refreshAuthStats();
+    } else {
+      loadLocalBestScore();
     }
   } else {
     setAuth(null);
+    loadLocalBestScore();
   }
   if (bestScoreEl) bestScoreEl.textContent = `best: ${bestScore}`;
   updateBestScoreTitle();

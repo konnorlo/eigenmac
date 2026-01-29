@@ -159,7 +159,7 @@
 
         <div class="tab-panel hidden" id="panel-multi">
           <div class="section-title">multiplayer</div>
-          <div class="mp-tabs">
+          <div class="mp-tabs" id="mp-tabs">
             <button class="tab active" id="mp-tab-create">create room</button>
             <button class="tab" id="mp-tab-join">join room</button>
             <button class="tab" id="mp-tab-public">public rooms</button>
@@ -167,100 +167,119 @@
 
           <div class="mp-panel" id="mp-panel-create">
             <div class="mp-loading hidden" id="mp-loading">creating room…</div>
-            <div class="settings-grid">
-              <label>
-                room name
-                <input id="mp-room-name" type="text" placeholder="team alpha" />
-              </label>
-              <label>
-                room password (optional)
-                <input id="mp-password" type="text" placeholder="password" />
-              </label>
-            </div>
-
-            <div class="section-title">presets</div>
-            <div class="preset-grid" id="mp-preset-grid">
-            <button class="preset active" data-preset="p2">2x2</button>
-            <button class="preset" data-preset="p3">3x3</button>
-            <button class="preset" data-preset="p4">4x4</button>
-            <button class="preset" data-preset="p5">5x5</button>
-              <button class="preset" data-preset="custom">custom</button>
-            </div>
-            <div class="custom-settings hidden" id="mp-custom-settings">
+            <div class="mp-create-initial" id="mp-create-initial">
               <div class="settings-grid">
                 <label>
-                  time (s)
-                  <input id="mp-time-limit" type="number" min="10" max="600" value="120" />
+                  room name
+                  <input id="mp-room-name" type="text" placeholder="team alpha" />
                 </label>
                 <label>
-                  dimensions range
-                  <div class="range-row">
-                    <select id="mp-size-min">
-                      <option value="2" selected>2</option>
-                      <option value="3">3</option>
-                      <option value="4">4</option>
-                      <option value="5">5</option>
-                    </select>
-                    <span class="range-dash">to</span>
-                    <select id="mp-size-max">
-                      <option value="2">2</option>
-                      <option value="3" selected>3</option>
-                      <option value="4">4</option>
-                      <option value="5">5</option>
-                    </select>
-                  </div>
+                  room code
+                  <input id="mp-room-code-display" type="text" placeholder="created after start" disabled />
                 </label>
-                <label>
-                  integer range (|value| ≤)
-                  <input id="mp-range" type="number" min="1" max="20" value="6" />
-                </label>
-                <label>
-                  symmetric matrices
-                  <select id="mp-symmetric">
-                    <option value="yes">Yes</option>
-                    <option value="no" selected>No</option>
-                  </select>
-                </label>
+              </div>
+              <div class="actions">
+                <button id="mp-create" class="primary">create room</button>
               </div>
             </div>
 
-            <div class="settings-row">
-              <label>
-                mode
-                <select id="mp-mode">
-                  <option value="classic" selected>classic</option>
-                  <option value="battle">battle royale</option>
-                </select>
-              </label>
-              <label id="mp-difficulty-wrap" class="hidden">
-                difficulty
-                <select id="mp-difficulty">
-                  <option value="easy">easy</option>
-                  <option value="medium" selected>medium</option>
-                  <option value="hard">hard</option>
-                  <option value="improbable">improbable</option>
-                </select>
-              </label>
-            </div>
+            <div class="mp-create-lobby hidden" id="mp-create-lobby">
+              <div class="settings-grid">
+                <label>
+                  room name
+                  <input id="mp-room-name-lobby" type="text" placeholder="team alpha" />
+                </label>
+                <label>
+                  room password (optional)
+                  <input id="mp-password" type="text" placeholder="password" />
+                </label>
+                <label>
+                  room code
+                  <input id="mp-room-code" type="text" placeholder="ABCDEF" disabled />
+                </label>
+              </div>
 
-            <div class="actions">
-              <button id="mp-create" class="primary">create room</button>
-            </div>
-            <div class="mp-room-status" id="mp-room-status"></div>
-            <div class="mp-players-title" id="mp-players-title">Players:</div>
-            <div class="mp-players" id="mp-players"></div>
-            <div class="mp-actions">
-              <button id="mp-leave" class="ghost hidden">leave room</button>
-              <button id="mp-start" class="primary hidden" disabled>start game</button>
-              <button id="mp-lock" class="ghost hidden">lock settings</button>
-            </div>
-            <div class="mp-lock-status" id="mp-lock-status"></div>
-            <div class="mp-chat">
-              <div class="mp-chat-title">lobby chat</div>
-              <div class="mp-chat-log" id="mp-chat-log"></div>
-              <div class="mp-chat-input">
-                <input id="mp-chat-text" type="text" placeholder="type a message" />
-                <button id="mp-chat-send" class="ghost">send</button>
+              <div class="section-title">presets</div>
+              <div class="preset-grid" id="mp-preset-grid">
+                <button class="preset active" data-preset="p2">2x2</button>
+                <button class="preset" data-preset="p3">3x3</button>
+                <button class="preset" data-preset="p4">4x4</button>
+                <button class="preset" data-preset="p5">5x5</button>
+                <button class="preset" data-preset="custom">custom</button>
+              </div>
+              <div class="custom-settings hidden" id="mp-custom-settings">
+                <div class="settings-grid">
+                  <label>
+                    time (s)
+                    <input id="mp-time-limit" type="number" min="10" max="600" value="120" />
+                  </label>
+                  <label>
+                    dimensions range
+                    <div class="range-row">
+                      <select id="mp-size-min">
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                      </select>
+                      <span class="range-dash">to</span>
+                      <select id="mp-size-max">
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                      </select>
+                    </div>
+                  </label>
+                  <label>
+                    integer range (|value| ≤)
+                    <input id="mp-range" type="number" min="1" max="20" value="6" />
+                  </label>
+                  <label>
+                    symmetric matrices
+                    <select id="mp-symmetric">
+                      <option value="yes">Yes</option>
+                      <option value="no" selected>No</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label>
+                  mode
+                  <select id="mp-mode">
+                    <option value="classic" selected>classic</option>
+                    <option value="battle">battle royale</option>
+                  </select>
+                </label>
+                <label id="mp-difficulty-wrap" class="hidden">
+                  difficulty
+                  <select id="mp-difficulty">
+                    <option value="easy">easy</option>
+                    <option value="medium" selected>medium</option>
+                    <option value="hard">hard</option>
+                    <option value="improbable">improbable</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="mp-room-status" id="mp-room-status"></div>
+              <div class="mp-players-title" id="mp-players-title">Players:</div>
+              <div class="mp-players" id="mp-players"></div>
+              <div class="mp-actions">
+                <button id="mp-leave" class="ghost hidden">leave room</button>
+                <button id="mp-start" class="primary hidden" disabled>start game</button>
+                <button id="mp-lock" class="ghost hidden">lock settings</button>
+              </div>
+              <div class="mp-lock-status" id="mp-lock-status"></div>
+              <div class="mp-chat">
+                <div class="mp-chat-title">lobby chat</div>
+                <div class="mp-chat-log" id="mp-chat-log"></div>
+                <div class="mp-chat-input">
+                  <input id="mp-chat-text" type="text" placeholder="type a message" />
+                  <button id="mp-chat-send" class="ghost">send</button>
+                </div>
               </div>
             </div>
           </div>
@@ -269,7 +288,7 @@
             <div class="settings-grid">
               <label>
                 room code
-                <input id="mp-room-code" type="text" placeholder="ABCDEF" />
+                <input id="mp-room-code-join" type="text" placeholder="ABCDEF" />
               </label>
               <label>
                 room password (optional)
@@ -325,7 +344,6 @@
 
   <footer class="footer">type eigenvalues in order; auto-checks each box</footer>
   <div class="best-score" id="best-score">best: 0</div>
-  <div class="power-score" id="power-score">power: 0</div>
 
   <script src="script.js"></script>
 </body>

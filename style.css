@@ -626,6 +626,12 @@ button {
   border-top: 1px solid var(--border);
 }
 
+.mp-create-initial,
+.mp-create-lobby {
+  display: grid;
+  gap: 12px;
+}
+
 .mp-actions {
   display: flex;
   gap: 8px;
@@ -724,6 +730,20 @@ button {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mp-player-controls {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ghost.small {
+  padding: 4px 8px;
+  font-size: 0.75rem;
 }
 
 #mp-start[disabled] {
@@ -814,15 +834,6 @@ button {
   position: fixed;
   left: 18px;
   bottom: 18px;
-  font-size: 1rem;
-  color: var(--muted);
-  z-index: 4;
-}
-
-.power-score {
-  position: fixed;
-  left: 18px;
-  bottom: 42px;
   font-size: 1rem;
   color: var(--muted);
   z-index: 4;
