@@ -183,6 +183,7 @@ const leaveGameBtn = document.getElementById('leave-game');
 const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
 const resultOverlay = document.getElementById('result-overlay');
+const gameBgVideo = document.getElementById('game-bg');
 const confettiImg = new Image();
 confettiImg.src = 'assets/images/confetti.png';
 const resultBetterImg = new Image();
@@ -253,6 +254,8 @@ const PLAYER_NAME = 'you';
 const PAIRCRAFT_CHANCE = 0.08;
 
 let timer = null;
+let gameStartMs = 0;
+let lastTimerSecond = 0;
 let timeLeft = 0;
 let score = 0;
 let bestScore = 0;
@@ -2122,18 +2125,31 @@ function startGame(options = {}) {
     battleLayoutEl.classList.toggle('single', !showLeaderboard);
   }
   if (!fromMultiplayer) {
+    gameStartMs = Date.now();
+    lastTimerSecond = 0;
+    const totalSeconds = settings.mode === 'battle' ? BATTLE_DURATION : settings.timeLimit;
     timer = setInterval(() => {
-      timeLeft -= 1;
-      timeEl.textContent = timeLeft;
+      const elapsed = Math.floor((Date.now() - gameStartMs) / 1000);
+      const newTimeLeft = Math.max(0, totalSeconds - elapsed);
+      if (newTimeLeft !== timeLeft) {
+        timeLeft = newTimeLeft;
+        timeEl.textContent = timeLeft;
+      }
       if (settings.mode === 'battle') {
-        tickBattle();
-        if (battle.active && battle.t >= BATTLE_DURATION) {
+        const targetSecond = Math.min(elapsed, BATTLE_DURATION);
+        if (targetSecond > lastTimerSecond) {
+          for (let i = lastTimerSecond; i < targetSecond; i += 1) {
+            tickBattle();
+          }
+          lastTimerSecond = targetSecond;
+        }
+        if (battle.active && elapsed >= BATTLE_DURATION) {
           endGame();
         }
       } else if (timeLeft <= 0) {
         endGame();
       }
-    }, 1000);
+    }, 250);
   }
 }
 
@@ -2141,6 +2157,8 @@ function endGame() {
   gameActive = false;
   clearInterval(timer);
   timer = null;
+  gameStartMs = 0;
+  lastTimerSecond = 0;
   submitResult();
   const presetKey = resolvePresetKey(settings, activeStartTab === 'multi' ? selectedPresetMulti : selectedPresetSingle);
   recordPresetResult(settings.mode || 'classic', presetKey || 'custom', score);
@@ -2253,6 +2271,21 @@ function showOnlyScreen(target) {
       screen.style.display = 'none';
     }
   });
+  if (document.body) {
+    const isGame = target === screenGame;
+    document.body.classList.toggle('phase-game', isGame);
+    if (gameBgVideo) {
+      if (isGame) {
+        gameBgVideo.currentTime = 0;
+        const playPromise = gameBgVideo.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {});
+        }
+      } else {
+        gameBgVideo.pause();
+      }
+    }
+  }
 }
 
 startBtn.addEventListener('click', startGame);

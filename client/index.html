@@ -7,9 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jersey+15&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles/main.css" />
+  <link rel="stylesheet" href="styles/main.css?v=2" />
 </head>
 <body>
+  <video id="game-bg" class="game-bg" autoplay muted loop playsinline preload="auto">
+    <source src="assets/images/ingame_loop.mp4" type="video/mp4" />
+  </video>
   <canvas id="pad" class="pad"></canvas>
   <img id="result-overlay" class="result-overlay" alt="" />
   <canvas id="confetti" class="confetti"></canvas>
@@ -79,9 +82,11 @@
     <div class="preset-stats" id="preset-stats"></div>
 
     <section class="screen" id="screen-start">
+      <div class="floating-logo">
+        <img class="brand-logo" src="assets/images/main_logo.png" alt="eigenmac" />
+      </div>
       <div class="card">
         <div class="start-header">
-          <img class="brand-logo" src="assets/images/main_logo.png" alt="eigenmac" />
           <div class="tab-row">
             <button class="tab active" id="tab-single">singleplayer</button>
             <button class="tab" id="tab-multi">multiplayer</button>

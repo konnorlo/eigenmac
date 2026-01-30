@@ -17,4 +17,28 @@ https://konnorlo.github.io/eigenmac/
 
 
 ## License
-Owned by Konnor Lo
+Copyright (c) 2026 Konnor Lo
+
+Permission is granted to use this software for personal,
+non-commercial purposes only.
+
+You may NOT:
+- Sell this software or any derivative works
+- Include this software in other projects
+- Redistribute this software
+- Use this software for commercial purposes
+
+You may:
+- Use this software privately for personal purposes
+- Modify this software for personal use only
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+Commercial licensing is available. Contact: konnor@uchicago.edu
