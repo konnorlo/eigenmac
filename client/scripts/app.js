@@ -184,15 +184,15 @@ const dvdTemplate = document.getElementById('dvd-template');
 const confetti = document.getElementById('confetti');
 const resultOverlay = document.getElementById('result-overlay');
 const confettiImg = new Image();
-confettiImg.src = 'confetti.png';
+confettiImg.src = 'assets/images/confetti.png';
 const resultBetterImg = new Image();
 const resultLowerImg = new Image();
 const resultRoyaleWinImg = new Image();
 const paircraftImg = new Image();
-resultBetterImg.src = 'images/new_best.png';
-resultLowerImg.src = 'images/not_new_best.png';
-resultRoyaleWinImg.src = 'images/royale_winner.png';
-paircraftImg.src = 'paircraft.png';
+resultBetterImg.src = 'assets/images/new_best.png';
+resultLowerImg.src = 'assets/images/not_new_best.png';
+resultRoyaleWinImg.src = 'assets/images/royale_winner.png';
+paircraftImg.src = 'assets/images/paircraft.png';
 
 const BOT_NAMES = [
   'Marla Kingsley',
@@ -1140,7 +1140,7 @@ function handleWsMessage(data) {
     updateRankDisplay(multiplayer.placement);
     if (data.roomMode === 'battle' && data.winnerId) {
       if (data.winnerId === wsClientId) {
-        resultOverlay.src = 'images/royale_winner.png';
+        resultOverlay.src = 'assets/images/royale_winner.png';
         resultOverlay.alt = 'battle royale winner';
         resultOverlay.style.display = 'block';
       }
@@ -2163,19 +2163,19 @@ function endGame() {
   }
   if (resultOverlay) {
     if (settings.mode === 'battle' && battle.placement === 1 && !battle.eliminated) {
-      resultOverlay.src = 'images/royale_winner.png';
+      resultOverlay.src = 'assets/images/royale_winner.png';
       resultOverlay.alt = 'battle royale winner';
       resultOverlay.style.display = 'block';
     } else if (battle.eliminated) {
-      resultOverlay.src = 'images/not_new_best.png';
+      resultOverlay.src = 'assets/images/not_new_best.png';
       resultOverlay.alt = 'lower than best';
       resultOverlay.style.display = 'block';
     } else if (score >= prevBest) {
-      resultOverlay.src = 'images/new_best.png';
+      resultOverlay.src = 'assets/images/new_best.png';
       resultOverlay.alt = 'better than best';
       resultOverlay.style.display = 'block';
     } else if (score < prevBest) {
-      resultOverlay.src = 'images/not_new_best.png';
+      resultOverlay.src = 'assets/images/not_new_best.png';
       resultOverlay.alt = 'lower than best';
       resultOverlay.style.display = 'block';
     } else {
@@ -2195,11 +2195,11 @@ function endGame() {
   }
   if (multiplayer.enabled && multiplayer.winnerId) {
     if (multiplayer.winnerId === wsClientId) {
-      resultOverlay.src = 'images/royale_winner.png';
+      resultOverlay.src = 'assets/images/royale_winner.png';
       resultOverlay.alt = 'battle royale winner';
       resultOverlay.style.display = 'block';
     } else {
-      resultOverlay.src = 'images/not_new_best.png';
+      resultOverlay.src = 'assets/images/not_new_best.png';
       resultOverlay.alt = 'eliminated';
       resultOverlay.style.display = 'block';
     }
