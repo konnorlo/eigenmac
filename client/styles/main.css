@@ -38,6 +38,9 @@
   --font-md: calc(16px * var(--scale));
   --font-lg: calc(20px * var(--scale));
   --font-xl: calc(26px * var(--scale));
+  --font-vmin-sm: calc(0.9vmin + 0.55rem);
+  --font-vmin-md: calc(1.1vmin + 0.65rem);
+  --font-vmin-lg: calc(1.4vmin + 0.8rem);
   --card-scale: clamp(0.85, 0.85 + (100vw - 320px) / 1600, 1.1);
   --logo-width: 20vw;
   --logo-scale: calc(var(--logo-width) / 100vw);
@@ -59,6 +62,7 @@ body {
     url("../assets/images/main_background.png") center top / auto 100vh repeat-x;
   color: var(--text-soft);
   min-height: 100vh;
+  font-size: var(--font-vmin-sm);
 }
 
 body::before {
@@ -129,18 +133,19 @@ body.phase-game .pad {
   z-index: 6;
   background: rgba(42, 28, 57, 0.72);
   border: calc(2px * var(--scale)) solid var(--border);
-  border-radius: var(--radius-2);
+  border-radius: calc(2vmin);
   padding: calc(2vmin);
-  width: 40vmin;
+  width: calc(40vmin);
   display: grid;
-  gap: var(--space-1);
+  gap: calc(1.5vmin);
+  font-size: calc(1.2vmin + 0.75rem);
 }
 
 .auth-title {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: var(--font-sm);
+  font-size: var(--font-vmin-md);
   color: var(--text-strong);
 }
 
@@ -150,17 +155,17 @@ body.phase-game .pad {
   border: calc(2px * var(--scale)) solid var(--border-soft);
   border-radius: var(--radius-1);
   padding: var(--space-1) var(--space-2);
-  font-size: var(--font-sm);
+  font-size: var(--font-vmin-sm);
 }
 
 .auth-actions {
   display: flex;
-  gap: var(--space-1);
+  gap: calc(1.5vmin);
 }
 
 .auth-status {
   color: var(--text-soft);
-  font-size: 0.85rem;
+  font-size: var(--font-vmin-sm);
 }
 
 .dvd {
@@ -287,14 +292,14 @@ body.phase-game .pad {
 }
 
 .stat-label {
-  font-size: var(--font-sm);
+  font-size: var(--font-vmin-sm);
   color: var(--text-soft);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .stat-value {
-  font-size: var(--font-xl);
+  font-size: var(--font-vmin-lg);
   font-weight: 700;
 }
 
@@ -670,11 +675,11 @@ button {
   background: var(--card);
   color: var(--text-soft);
   padding: var(--space-1) var(--space-2);
-  border-radius: 999px;
+  border-radius: 5px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: var(--font-sm);
+  font-size: var(--font-vmin-md);
 }
 
 .tab.active {
@@ -686,7 +691,7 @@ button {
 .tab-panel {
   display: grid;
   gap: var(--space-3);
-  font-size: 0.75rem;
+  font-size: var(--font-vmin-sm);
   justify-items: center;
   text-align: center;
 }
@@ -695,7 +700,7 @@ button {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-size: var(--font-sm);
+  font-size: var(--font-vmin-md);
   color: var(--text-strong);
 }
 
@@ -718,6 +723,7 @@ button {
   border-radius: var(--radius-2);
   text-align: left;
   font-weight: 600;
+  font-size: var(--font-vmin-sm);
 }
 
 .preset.active {
